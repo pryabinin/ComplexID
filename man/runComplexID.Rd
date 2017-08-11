@@ -21,7 +21,8 @@ For both Grange objects and matrices/dataframes, each entry/row corresponds to o
 \item{alpha}{single numeric in the range of (0,1]. The weight given to the vector of initialized values for the random walk, higher value of alpha means more weight for the initialized values}
 }
 \value{
-data frame of two columns. The first column are Entrez Gene IDs and the second column are the scores of each gene for the phenotype of interest. Sorted from largest to smallest score.
+data frame of five columns showing the scores of each gene, related to how much that gene is important to the query phenotype, as well as other information about the gene. It is ordered with the highest scoring genes first.\cr
+The first column are Entrez Gene IDs, the second column are HUGO gene names, the third column are the names of the complexes that gene is part of, the fourth columns is the score for the gene, and the fifth column is the number of hits that were annotated to that gene.
 }
 \description{
 Annotates hits to genes, performs random walk with restarts on a network of protein complexes, and then scores each gene in the network for its association with the pheontype of interest
