@@ -2,4 +2,5 @@
 
 export(runComplexID)
 import(GenomicRanges)
+import(IRanges)
 import(Matrix)
