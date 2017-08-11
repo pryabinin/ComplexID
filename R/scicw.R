@@ -33,6 +33,10 @@ NULL
 #' \cr
 #' A random walk with restarts is initialized and performed as in RWPCN then all genes in the PPI and complexes are scored according to the weights in the complex network.
 #' @return data frame of two columns. The first column are Entrez Gene IDs and the second column are the scores of each gene for the phenotype of interest. Sorted from largest to smallest score.
+#' @examples
+#' data("hits")
+#' data("hits.pheno")
+#' test <- runComplexID(Hits = hits,phenoSim=hits.pheno,promoterRange = 10000,upstream = 1000,downstream = 1000,utr = T)
 #' @export
 runComplexID <- function(Hits,phenoSim,promoterRange=100000,eps=1e-10,alpha=0.8,upstream=NULL,downstream=NULL,utr=T) {
   # Check for errors in input

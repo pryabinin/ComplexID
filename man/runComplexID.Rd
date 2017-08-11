@@ -36,3 +36,8 @@ Protein complexes were retrieved from CORUM. Any complex with no genes in the PP
 \cr
 A random walk with restarts is initialized and performed as in RWPCN then all genes in the PPI and complexes are scored according to the weights in the complex network.
 }
+\examples{
+data("hits")
+data("hits.pheno")
+test <- runComplexID(Hits = hits,phenoSim=hits.pheno,promoterRange = 10000,upstream = 1000,downstream = 1000,utr = T)
+}
