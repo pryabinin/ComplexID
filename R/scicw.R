@@ -10,6 +10,7 @@
 #' @author Peter Ryabinin
 #' @import Matrix
 #' @import IRanges
+#' @import S4Vectors
 #' @import GenomicRanges
 NULL
 
