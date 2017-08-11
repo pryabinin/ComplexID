@@ -9,6 +9,7 @@
 #' @name ComplexID
 #' @author Peter Ryabinin
 #' @import Matrix
+#' @import IRanges
 #' @import GenomicRanges
 NULL
 
