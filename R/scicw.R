@@ -34,8 +34,10 @@ NULL
 #' Protein complexes were retrieved from CORUM. Any complex with no genes in the PPI was removed along with 5 of the largest complexes (more than 70 subunits) \cr
 #' \cr
 #' A random walk with restarts is initialized and performed as in RWPCN then all genes in the PPI and complexes are scored according to the weights in the complex network.
-#' @return data frame of five columns showing the scores of each gene, related to how much that gene is important to the query phenotype, as well as other information about the gene. It is ordered with the highest scoring genes first.\cr
+#' @return A list with two objects: a data frame and a GRanges object
+#' The data frame has five columns showing the scores of each gene, related to how much that gene is important to the query phenotype, as well as other information about the gene. It is ordered with the highest scoring genes first.\cr
 #' The first column are Entrez Gene IDs, the second column are HUGO gene names, the third column are the names of the complexes that gene is part of, the fourth columns is the score for the gene, and the fifth column is the number of hits that were annotated to that gene.
+#' The GRanges objects lists all of the input hits that were not mapped to any gene.
 #' @examples
 #' data("hits")
 #' data("hits.pheno")
