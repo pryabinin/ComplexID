@@ -57,15 +57,17 @@ runComplexID <- function(Hits,phenoSim,promoterRange=100000,eps=1e-10,alpha=0.8,
     stop("downstream must be greater than or equal to zero")
   if (utr != T & utr != F)
     stop("utr must be either TRUE or FALSE")
-  if (ncol(mcols(Hits)) < 2)
-    stop("Hits must have at least two meta data columns")
   if (ncol(phenoSim) < 2)
     stop("phenoSim must have at least two columns")
   # Convert matrix to genomic ranges object
   if (is.matrix(Hits) | is.data.frame(Hits)) {
+    if (ncol(Hits)<4)
+      stop("Hits must have at least 4 columns")
     Hits <- as.data.frame(Hits)
     Hits <- makeGRangesFromDataFrame(df = Hits,keep.extra.columns = T,ignore.strand = T,seqnames.field = names(Hits)[2],start.field = names(Hits)[3],end.field = names(Hits)[3])
   }
+  if (ncol(mcols(Hits)) < 2)
+    stop("Hits must have at least two meta data columns")
   if (sum(mcols(Hits)[,2] %in% phenoSim[,1]) < length(Hits))
     stop("some hits in Hits have a phenotype that is nonexistant in phenoSim")
 
