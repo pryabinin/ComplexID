@@ -22,9 +22,12 @@ NULL
 #' If it is a matrix or data frame, then the first column must be the Hit's name, the second column must be chromosome designation, the third column must the base pair position, and the fourth column must a phenotype that the site is causitive for. \cr
 #' For both Grange objects and matrices/dataframes, each entry/row corresponds to one site that is causitive to one phenotype. If a site is causitive in multiple phenotypes then there would be multiple entries for the same site but all with different values in the phenotype column
 #' @param phenoSim matrix or data frame with two columns. The first column are names of phenotypes that match the same phenotypes found in Hits. The second column are phenotype similarity values between the phenotype in that row and the phenotype of interest (values between 0 and 1), with higher values denoting higher similarity
-#' @param promoterRange single integer greater than zero. How many bases to look upstream of a TSS of a gene in order to find a promoter region.
+#' @param promoterRange single integer greater than or equal to zero. How many bases to look upstream of a TSS of a gene in order to find a promoter region for a gene.
 #' @param eps single numeric, must be greater than zero. L1 norm threshold between current and previous interations of random walk at which to terminate the random walk
 #' @param alpha single numeric in the range of (0,1]. The weight given to the vector of initialized values for the random walk, higher value of alpha means more weight for the initialized values
+#' @param upstream single integer or NULL. How far upstream of a transcription start site a hit can be for it to be annotated to that gene. A NULL value is equivalent to a value of zero (no upstream sites will be annotated to a gene unless they lie in a promoter region, see promoterRange parameter).
+#' @param downstream single integer or NULL. How far downstream of a transcription start site a hit can be for it to be annotated to that gene. A NULL value is equivalent to a value of zero (no downstream sites will be annotated to a gene).
+#' @param utr TRUE or FALSE. If TRUE then it will look for hits in the 3' and 5' UTRs of genes, otherwise it will not.
 #' @details
 #' Annotates Hits to genes using a built-in annotation database. Gene annotations come from ENSEMBL genes that have Entrez gene IDs and are in the STRING PPI with threshold >700. Promoter regions are
 #' from ENCODE annotation, a hit in Hits is in a promoter region for a gene if it lies within a promoter region that is a number of bases upstream equal to promoterRange.\cr
@@ -51,10 +54,12 @@ runComplexID <- function(Hits,phenoSim,promoterRange=100000,eps=1e-10,alpha=0.8,
     stop("eps must be greater than zero")
   if (alpha <= 0 | alpha > 1)
     stop("alpha must be in the range of (0,1]")
-  if (length(upstream)>0 & upstream < 0)
-    stop("upstream must be greater than or equal to zero")
-  if (length(downstream)>0 & downstream < 0)
-    stop("downstream must be greater than or equal to zero")
+  if (length(upstream)>0)
+    if (upstream<0)
+      stop("upstream must be greater than or equal to zero")
+  if (length(downstream)>0)
+    if(downstream < 0)
+      stop("downstream must be greater than or equal to zero")
   if (utr != T & utr != F)
     stop("utr must be either TRUE or FALSE")
   if (ncol(phenoSim) < 2)

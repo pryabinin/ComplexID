@@ -14,11 +14,17 @@ For both Grange objects and matrices/dataframes, each entry/row corresponds to o
 
 \item{phenoSim}{matrix or data frame with two columns. The first column are names of phenotypes that match the same phenotypes found in Hits. The second column are phenotype similarity values between the phenotype in that row and the phenotype of interest (values between 0 and 1), with higher values denoting higher similarity}
 
-\item{promoterRange}{single integer greater than zero. How many bases to look upstream of a TSS of a gene in order to find a promoter region.}
+\item{promoterRange}{single integer greater than or equal to zero. How many bases to look upstream of a TSS of a gene in order to find a promoter region for a gene.}
 
 \item{eps}{single numeric, must be greater than zero. L1 norm threshold between current and previous interations of random walk at which to terminate the random walk}
 
 \item{alpha}{single numeric in the range of (0,1]. The weight given to the vector of initialized values for the random walk, higher value of alpha means more weight for the initialized values}
+
+\item{upstream}{single integer or NULL. How far upstream of a transcription start site a hit can be for it to be annotated to that gene. A NULL value is equivalent to a value of zero (no upstream sites will be annotated to a gene unless they lie in a promoter region, see promoterRange parameter).}
+
+\item{downstream}{single integer or NULL. How far downstream of a transcription start site a hit can be for it to be annotated to that gene. A NULL value is equivalent to a value of zero (no downstream sites will be annotated to a gene).}
+
+\item{utr}{TRUE or FALSE. If TRUE then it will look for hits in the 3' and 5' UTRs of genes, otherwise it will not.}
 }
 \value{
 A list with two objects: a data frame and a GRanges object
