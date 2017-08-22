@@ -5,6 +5,7 @@
 #' @section ComplexID functions:
 #' runComplexID
 #'
+#'
 #' @docType package
 #' @name ComplexID
 #' @author Peter Ryabinin
@@ -12,6 +13,7 @@
 #' @import IRanges
 #' @import S4Vectors
 #' @import GenomicRanges
+#' @import igraph
 NULL
 
 #' Annotates Hits, Performs Random Walk, and Scores Genes
@@ -37,16 +39,16 @@ NULL
 #' Protein complexes were retrieved from CORUM. Any complex with no genes in the PPI was removed along with 5 of the largest complexes (more than 70 subunits) \cr
 #' \cr
 #' A random walk with restarts is initialized and performed as in RWPCN then all genes in the PPI and complexes are scored according to the weights in the complex network.
-#' @return A list with two objects: a data frame and a GRanges object
-#' The data frame has five columns showing the scores of each gene, related to how much that gene is important to the query phenotype, as well as other information about the gene. It is ordered with the highest scoring genes first.\cr
+#' @return A list with two objects: a data frame called "scores" and a GRanges object "missingHits"
+#' The data frame "scores" has five columns showing the scores of each gene, related to how much that gene is important to the query phenotype, as well as other information about the gene. It is ordered with the highest scoring genes first.\cr
 #' The first column are Entrez Gene IDs, the second column are HUGO gene names, the third column are the names of the complexes that gene is part of, the fourth columns is the score for the gene, and the fifth column is the number of hits that were annotated to that gene.
-#' The GRanges objects lists all of the input hits that were not mapped to any gene.
+#' The GRanges object "missingHits" lists all of the input hits that were not mapped to any gene.
 #' @examples
 #' data("hits")
 #' data("hits.pheno")
 #' test <- runComplexID(Hits = hits,phenoSim=hits.pheno,promoterRange = 10000,upstream = 1000,downstream = 1000,utr = T)
 #' @export
-runComplexID <- function(Hits,phenoSim,promoterRange=100000,eps=1e-10,alpha=0.8,upstream=NULL,downstream=NULL,utr=T) {
+runComplexID <- function(Hits,phenoSim,promoterRange=100000,eps=1e-10,alpha=0.8,upstream=NULL,downstream=NULL,utr=T,geneScoring=sum) {
   # Check for errors in input
   if (promoterRange < 0)
     stop("promoterRange must be greater than zero")
@@ -66,10 +68,10 @@ runComplexID <- function(Hits,phenoSim,promoterRange=100000,eps=1e-10,alpha=0.8,
     stop("phenoSim must have at least two columns")
   # Convert matrix to genomic ranges object
   if (is.matrix(Hits) | is.data.frame(Hits)) {
-    if (ncol(Hits)<4)
-      stop("Hits must have at least 4 columns")
+    if (ncol(Hits)<5)
+      stop("Hits must have at least 5 columns")
     Hits <- as.data.frame(Hits)
-    Hits <- makeGRangesFromDataFrame(df = Hits,keep.extra.columns = T,ignore.strand = T,seqnames.field = names(Hits)[2],start.field = names(Hits)[3],end.field = names(Hits)[3])
+    Hits <- makeGRangesFromDataFrame(df = Hits,keep.extra.columns = T,ignore.strand = T,seqnames.field = names(Hits)[2],start.field = names(Hits)[3],end.field = names(Hits)[4])
   }
   if (ncol(mcols(Hits)) < 2)
     stop("Hits must have at least two meta data columns")
@@ -85,7 +87,7 @@ runComplexID <- function(Hits,phenoSim,promoterRange=100000,eps=1e-10,alpha=0.8,
   # perform random walk with restarts
   Ffinal <- .RWPCN(F0,eps,alpha)
   # calculate final scores for each gene
-  geneScores <- .calcGeneScores(Ffinal)
+  geneScores <- .calcGeneScores(Ffinal,geneScoring)
   # Determine if a gene has a hit in it
   geneScores <- merge(geneScores,seedgenes$hitsPerGene,by=1,all.x=T)
   names(geneScores)[ncol(geneScores)] <- "Num.Hits"
@@ -93,6 +95,38 @@ runComplexID <- function(Hits,phenoSim,promoterRange=100000,eps=1e-10,alpha=0.8,
   geneScores <- geneScores[order(geneScores$score,decreasing = T),]
   row.names(geneScores) <-NULL
   return(list("scores"=geneScores,"missingHits"=seedgenes$missingHits))
+}
+
+#' Produce Network Plot
+#'
+#' Produces a network plot of the specified genes and their neighbors (if desired)
+#'
+#' @param centralGenes character vector. The Entrez Gene IDs of the genes that around which the network plot will be centered
+#' @param order single integer, by default 0, The degree of neighboring genes that will be included. A value of zero means no neighboring genes are included
+#' @param useHugoNames single binary TRUE or FALSE, defaults to TRUE which means the vertices will be labeled by their Hugo names. If FALSE then the vertcies will be labeled by the their EntrezGene IDs. If no labels are desired then set useHugoNames to FALSE and pass "vertex.label=NA" in the ... parameter.
+#' @param ... arguments passed to plot.igraph function
+#' @details
+#' Plots a graph of the network of genes centered around the centralGenes, including neighbors out to the degree of "order". Any additional parameters for the plot.igraph function may be passed as well. \cr\cr
+#' Vertices are colored red if they are in centralGenes and orange otherwise. \cr
+#' \cr
+#' Edges are colored red if the interaction exists in the PPI and the two vertices share a complex. Edges are colored black if the interaction exists in the PPI but the two vertices do not share a compelx. Edges are colored green if the two vertices share a complex but do not interact in the PPI. \cr\cr
+#' Complexes are plotted as ellipses circling the vertices. Vertices that are not circled are not part of any complex. Vertices which are circled individually are part of a complex but none of the other genes are included in this graph.
+#' @return A plot of the subnetwork
+#' @examples
+#' data("hits")
+#' data("hits.pheno")
+#' test <- runComplexID(Hits = hits,phenoSim=hits.pheno,promoterRange = 10000,upstream = 1000,downstream = 1000,utr = T)
+#' generatePlot(test$scores$Entrez.Gene.ID[1:10])
+#' @export
+generatePlot <- function(centralGenes,order=0,useHugoNames=T,...) {
+  graph.to.plot <- induced_subgraph(.complete.igraph,unlist(neighborhood(.complete.igraph,order = order,nodes = as.character(centralGenes))))
+  V(graph.to.plot)$color <- ifelse(names(V(graph.to.plot)) %in% as.character(centralGenes),"red","orange")
+  complexes.to.plot <- .corum.subunits[sapply(.corum.subunits,function(x) { sum(as.integer(names(V(graph.to.plot))) %in% x)>0 })]
+  complexes.to.plot <- lapply(complexes.to.plot,function(x) { as.character(x)[as.character(x) %in% names(V(graph.to.plot))] })
+  if (useHugoNames)
+    return(plot.igraph(x=graph.to.plot,mark.groups = complexes.to.plot,vertex.label=.ent.to.hug[names(V(graph.to.plot))],...))
+  else
+    return(plot.igraph(x=graph.to.plot,mark.groups = complexes.to.plot,...))
 }
 
 #' @keywords internal
@@ -152,7 +186,7 @@ runComplexID <- function(Hits,phenoSim,promoterRange=100000,eps=1e-10,alpha=0.8,
   missingHits <- Hits[!(1:length(Hits) %in% queryHits(snpOverlaps))]
   pheno <- mcols(Hits)[queryHits(snpOverlaps),2]
   time.to.repeat <- sapply(annotations$genes[subjectHits(snpOverlaps)],length)
-  snpPheno <- unlist(mapply(rep, pheno, time.to.repeat))
+  snpPheno <- as.character(unlist(mapply(rep, pheno, time.to.repeat)))
 
   geneToPheno <- unique(matrix(c(unlist(annotations$genes[subjectHits(snpOverlaps)]),snpPheno),ncol = 2))
 
@@ -190,9 +224,9 @@ runComplexID <- function(Hits,phenoSim,promoterRange=100000,eps=1e-10,alpha=0.8,
 }
 
 #' @keywords internal
-.calcGeneScores <- function(Ffinal) {
+.calcGeneScores <- function(Ffinal,geneScoring) {
   scores <- sapply(.geneToComplex, function(x) {
-    sum(Ffinal[x])
+    geneScoring(Ffinal[x])
   })
   ret <- data.frame("Entrez.Gene.ID"=names(.geneToComplex),"HUGO Gene Name"=.hugoNames,"Complexes"=.complexNames,"score"=scores)
   ret <- ret[order(ret[,2],decreasing = T),]
