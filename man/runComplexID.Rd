@@ -5,8 +5,8 @@
 \title{Annotates Hits, Performs Random Walk, and Scores Genes}
 \usage{
 runComplexID(Hits, phenoSim, promoterRange = 1e+05, eps = 1e-10,
-  alpha = 0.8, upstream = NULL, downstream = NULL, utr = T,
-  geneScoring = sum)
+  alpha = 0.8, upstream = NULL, downstream = NULL, utr = T, eqtl = T,
+  enhancers = T, geneScoring = sum)
 }
 \arguments{
 \item{Hits}{Granges object with two meta data columns, or a matrix or data frame with at least 4 columns. \cr If it is a Granges object, then the first meta data column is the site's name. The second meta data columns is a phenotype that the site is causitive for.\cr
@@ -26,11 +26,13 @@ For both Grange objects and matrices/dataframes, each entry/row corresponds to o
 \item{downstream}{single integer or NULL. How far downstream of a transcription start site a hit can be for it to be annotated to that gene. A NULL value is equivalent to a value of zero (no downstream sites will be annotated to a gene).}
 
 \item{utr}{TRUE or FALSE. If TRUE then it will look for hits in the 3' and 5' UTRs of genes, otherwise it will not.}
+
+\item{eqtl}{TRUE or FALSE. By default TRUE. If TRUE, then hits may be mapped to eQTL loci and therefore be designated as causitive for the gene(s) which the eQTL targets.}
 }
 \value{
 A list with two objects: a data frame called "scores" and a GRanges object "missingHits"
-The data frame "scores" has five columns showing the scores of each gene, related to how much that gene is important to the query phenotype, as well as other information about the gene. It is ordered with the highest scoring genes first.\cr
-The first column are Entrez Gene IDs, the second column are HUGO gene names, the third column are the names of the complexes that gene is part of, the fourth columns is the score for the gene, and the fifth column is the number of hits that were annotated to that gene.
+The data frame "scores" has six columns showing the scores of each gene, related to how much that gene is important to the query phenotype, as well as other information about the gene. It is ordered with the highest scoring genes first.\cr
+The first column are Entrez Gene IDs, the second column are HUGO gene names, the third column are the names of the complexes that gene is part of, the fourth columns is the score for the gene, the fifth column are the features of that gene that have a hit in them, and the sixth column is the number of hits that were annotated to that gene.
 The GRanges object "missingHits" lists all of the input hits that were not mapped to any gene.
 }
 \description{

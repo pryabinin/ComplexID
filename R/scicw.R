@@ -30,6 +30,7 @@ NULL
 #' @param upstream single integer or NULL. How far upstream of a transcription start site a hit can be for it to be annotated to that gene. A NULL value is equivalent to a value of zero (no upstream sites will be annotated to a gene unless they lie in a promoter region, see promoterRange parameter).
 #' @param downstream single integer or NULL. How far downstream of a transcription start site a hit can be for it to be annotated to that gene. A NULL value is equivalent to a value of zero (no downstream sites will be annotated to a gene).
 #' @param utr TRUE or FALSE. If TRUE then it will look for hits in the 3' and 5' UTRs of genes, otherwise it will not.
+#' @param eqtl TRUE or FALSE. By default TRUE. If TRUE, then hits may be mapped to eQTL loci and therefore be designated as causitive for the gene(s) which the eQTL targets.
 #' @details
 #' Annotates Hits to genes using a built-in annotation database. Gene annotations come from ENSEMBL genes that have Entrez gene IDs and are in the STRING PPI with threshold >700. Promoter regions are
 #' from ENCODE annotation, a hit in Hits is in a promoter region for a gene if it lies within a promoter region that is a number of bases upstream equal to promoterRange.\cr
@@ -40,15 +41,15 @@ NULL
 #' \cr
 #' A random walk with restarts is initialized and performed as in RWPCN then all genes in the PPI and complexes are scored according to the weights in the complex network.
 #' @return A list with two objects: a data frame called "scores" and a GRanges object "missingHits"
-#' The data frame "scores" has five columns showing the scores of each gene, related to how much that gene is important to the query phenotype, as well as other information about the gene. It is ordered with the highest scoring genes first.\cr
-#' The first column are Entrez Gene IDs, the second column are HUGO gene names, the third column are the names of the complexes that gene is part of, the fourth columns is the score for the gene, and the fifth column is the number of hits that were annotated to that gene.
+#' The data frame "scores" has six columns showing the scores of each gene, related to how much that gene is important to the query phenotype, as well as other information about the gene. It is ordered with the highest scoring genes first.\cr
+#' The first column are Entrez Gene IDs, the second column are HUGO gene names, the third column are the names of the complexes that gene is part of, the fourth columns is the score for the gene, the fifth column are the features of that gene that have a hit in them, and the sixth column is the number of hits that were annotated to that gene.
 #' The GRanges object "missingHits" lists all of the input hits that were not mapped to any gene.
 #' @examples
 #' data("hits")
 #' data("hits.pheno")
 #' test <- runComplexID(Hits = hits,phenoSim=hits.pheno,promoterRange = 10000,upstream = 1000,downstream = 1000,utr = T)
 #' @export
-runComplexID <- function(Hits,phenoSim,promoterRange=100000,eps=1e-10,alpha=0.8,upstream=NULL,downstream=NULL,utr=T,geneScoring=sum) {
+runComplexID <- function(Hits,phenoSim,promoterRange=100000,eps=1e-10,alpha=0.8,upstream=NULL,downstream=NULL,utr=T,eqtl=T,enhancers=T,geneScoring=sum) {
   # Check for errors in input
   if (promoterRange < 0)
     stop("promoterRange must be greater than zero")
@@ -79,7 +80,7 @@ runComplexID <- function(Hits,phenoSim,promoterRange=100000,eps=1e-10,alpha=0.8,
     stop("some hits in Hits have a phenotype that is nonexistant in phenoSim")
 
   # create annotations according to the user's promoter threshold
-  annotations <- .createAnnotationDB(promoterRange,upstream,downstream,utr)
+  annotations <- .createAnnotationDB(promoterRange,upstream,downstream,utr,eqtl,enhancers)
   # get set of seed genes linked to a phenotype
   seedgenes <- .getSeedGenes(Hits,annotations)
   # initialize network
@@ -90,7 +91,7 @@ runComplexID <- function(Hits,phenoSim,promoterRange=100000,eps=1e-10,alpha=0.8,
   geneScores <- .calcGeneScores(Ffinal,geneScoring)
   # Determine if a gene has a hit in it
   geneScores <- merge(geneScores,seedgenes$hitsPerGene,by=1,all.x=T)
-  names(geneScores)[ncol(geneScores)] <- "Num.Hits"
+  names(geneScores)[(ncol(geneScores)-1):ncol(geneScores)] <- c("Feature.of.Hits","Num.Hits")
   geneScores$Num.Hits <- ifelse(is.na(geneScores$Num.Hits),0,geneScores$Num.Hits)
   geneScores <- geneScores[order(geneScores$score,decreasing = T),]
   row.names(geneScores) <-NULL
@@ -130,7 +131,7 @@ generatePlot <- function(centralGenes,order=0,useHugoNames=T,...) {
 }
 
 #' @keywords internal
-.createAnnotationDB <- function(promoterRange,upstream,downstream,utr) {
+.createAnnotationDB <- function(promoterRange,upstream,downstream,utr,eqtl,enhancers) {
   tss.regions.gr <- GRanges(seqnames=seqnames(.gene.annotation.gr),
                             ranges=IRanges(start=ifelse(strand(.gene.annotation.gr)=="-",.gene.annotation.gr$Transcription.Start.Site..TSS.,.gene.annotation.gr$Transcription.Start.Site..TSS.-promoterRange),
                                            end=ifelse(strand(.gene.annotation.gr)=="-",.gene.annotation.gr$Transcription.Start.Site..TSS.+promoterRange,.gene.annotation.gr$Transcription.Start.Site..TSS.)),
@@ -154,8 +155,36 @@ generatePlot <- function(centralGenes,order=0,useHugoNames=T,...) {
 
   temp.gr <- .gene.annotation.gr
   temp.gr$Transcription.Start.Site..TSS. <- NULL
+  ret <- temp.gr
 
-  ret <- c(temp.gr,.encode.promoters.distal.gr[.encode.promoters.distal.gr$genes != ""],.encode.promoters.prox.gr[.encode.promoters.prox.gr$genes != ""])
+  if(enhancers) {
+    enhancer.annot <- c(.encode.promoters.distal.gr[.encode.promoters.distal.gr$genes != ""],.encode.promoters.prox.gr[.encode.promoters.prox.gr$genes != ""])
+    enhancer.annot <- enhancer.annot[!is.na(enhancer.annot$enhancer.starts)]
+    time.to.repeat <- sapply(enhancer.annot$enhancer.starts,length)
+
+    temp.genes=enhancer.annot$genes[unlist(mapply(rep,1:length(enhancer.annot),time.to.repeat))]
+    enhancer.annot <- GRanges(seqnames=unlist(mapply(rep, as.character(seqnames(enhancer.annot)), time.to.repeat)),
+                              ranges=IRanges(start=unlist(mapply(rep, start(enhancer.annot), time.to.repeat)),
+                                             end=unlist(mapply(rep, end(enhancer.annot), time.to.repeat))))
+    enhancer.annot$genes=temp.genes
+
+    time.to.repeat <- sapply(enhancer.annot$genes,length)
+    enhancer.annot <- GRanges(seqnames=unlist(mapply(rep, as.character(seqnames(enhancer.annot)), time.to.repeat)),
+                              ranges=IRanges(start=unlist(mapply(rep, start(enhancer.annot), time.to.repeat)),
+                                             end=unlist(mapply(rep, end(enhancer.annot), time.to.repeat))),
+                              genes=unlist(enhancer.annot$genes))
+
+    enhancer.annot$Feature <- "Enhancer"
+    ret <- c(ret,enhancer.annot)
+  }
+
+  .encode.promoters.distal.gr$enhancer.starts <- NULL
+  .encode.promoters.distal.gr$enhancer.ends <- NULL
+
+  .encode.promoters.prox.gr$enhancer.starts <- NULL
+  .encode.promoters.prox.gr$enhancer.ends <- NULL
+
+  ret <- c(ret,.encode.promoters.distal.gr[.encode.promoters.distal.gr$genes != ""],.encode.promoters.prox.gr[.encode.promoters.prox.gr$genes != ""])
 
   if (utr)
     ret <- c(ret,.utr.entrez.gr)
@@ -177,6 +206,9 @@ generatePlot <- function(centralGenes,order=0,useHugoNames=T,...) {
     downstream.gr$Feature = "Downstream"
     ret <- c(ret,downstream.gr)
   }
+
+  if (eqtl)
+    ret <- c(ret,.eqtl.gr)
   return(ret)
 }
 
@@ -190,8 +222,13 @@ generatePlot <- function(centralGenes,order=0,useHugoNames=T,...) {
 
   geneToPheno <- unique(matrix(c(unlist(annotations$genes[subjectHits(snpOverlaps)]),snpPheno),ncol = 2))
 
-  snpToGene <- unique(matrix(c(unlist(mapply(rep, queryHits(snpOverlaps), time.to.repeat)),unlist(annotations$genes[subjectHits(snpOverlaps)])),ncol=2))
-  hitsPerGene <- as.data.frame(table(snpToGene[,2]),stringsAsFactors=F)
+  snpToGene <- unique(data.frame(snp=unlist(mapply(rep, queryHits(snpOverlaps), time.to.repeat)),
+                               gene=unlist(annotations$genes[subjectHits(snpOverlaps)]),
+                               feature=unlist(mapply(rep, annotations$Feature[subjectHits(snpOverlaps)], time.to.repeat))))
+
+  hitsPerGene <- aggregate(feature ~ gene, data = snpToGene, paste, collapse = ",")
+  hitsPerGene$Freq <- ifelse(grepl(",",hitsPerGene$feature)==F,1,sapply(gregexpr(",",hitsPerGene$feature),length)+1)
+  #hitsPerGene <- as.data.frame(table(snpToGene[,2]),stringsAsFactors=F)
 
   return(list("seedgenes"=unique(geneToPheno),"missingHits"=missingHits,"hitsPerGene"=hitsPerGene))
 }
