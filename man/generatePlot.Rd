@@ -4,7 +4,8 @@
 \alias{generatePlot}
 \title{Produce Network Plot}
 \usage{
-generatePlot(centralGenes, order = 0, useHugoNames = T, ...)
+generatePlot(centralGenes, order = 0, useHugoNames = T,
+  colorGenes = centralGenes, ...)
 }
 \arguments{
 \item{centralGenes}{character vector. The Entrez Gene IDs of the genes that around which the network plot will be centered}
@@ -12,6 +13,8 @@ generatePlot(centralGenes, order = 0, useHugoNames = T, ...)
 \item{order}{single integer, by default 0, The degree of neighboring genes that will be included. A value of zero means no neighboring genes are included}
 
 \item{useHugoNames}{single binary TRUE or FALSE, defaults to TRUE which means the vertices will be labeled by their Hugo names. If FALSE then the vertcies will be labeled by the their EntrezGene IDs. If no labels are desired then set useHugoNames to FALSE and pass "vertex.label=NA" in the ... parameter.}
+
+\item{colorGenes}{character vector. By default, is equal to centralGenes. The Entrez Gene IDs of the genes that will be colored red. The rest of the genes will be colored orange.}
 
 \item{...}{arguments passed to plot.igraph function}
 }

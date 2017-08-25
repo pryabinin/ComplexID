@@ -6,7 +6,7 @@
 \usage{
 runComplexID(Hits, phenoSim, promoterRange = 1e+05, eps = 1e-10,
   alpha = 0.8, upstream = NULL, downstream = NULL, utr = T, eqtl = T,
-  enhancers = T, geneScoring = sum)
+  enhancers = T, loopDist = 0, geneScoring = sum)
 }
 \arguments{
 \item{Hits}{Granges object with two meta data columns, or a matrix or data frame with at least 4 columns. \cr If it is a Granges object, then the first meta data column is the site's name. The second meta data columns is a phenotype that the site is causitive for.\cr
@@ -27,7 +27,11 @@ For both Grange objects and matrices/dataframes, each entry/row corresponds to o
 
 \item{utr}{TRUE or FALSE. If TRUE then it will look for hits in the 3' and 5' UTRs of genes, otherwise it will not.}
 
-\item{eqtl}{TRUE or FALSE. By default TRUE. If TRUE, then hits may be mapped to eQTL loci and therefore be designated as causitive for the gene(s) which the eQTL targets.}
+\item{eqtl}{TRUE or FALSE. By default TRUE. If TRUE, then hits may be mapped to eQTL loci, and therefore genes effected by those eQTLs be designated as causitive}
+
+\item{enhancers}{TRUE or FALSE. By default TRUE. If TRUE, then hits may be mapped to enhancer loci and linked to genes via looping structures and promoters}
+
+\item{loopDist}{single integer. By default 0. The maximum allowable distance that an enhancer or promoter can be from a looping region to be annotated to it.}
 }
 \value{
 A list with two objects: a data frame called "scores" and a GRanges object "missingHits"

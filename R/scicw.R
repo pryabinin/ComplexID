@@ -30,7 +30,9 @@ NULL
 #' @param upstream single integer or NULL. How far upstream of a transcription start site a hit can be for it to be annotated to that gene. A NULL value is equivalent to a value of zero (no upstream sites will be annotated to a gene unless they lie in a promoter region, see promoterRange parameter).
 #' @param downstream single integer or NULL. How far downstream of a transcription start site a hit can be for it to be annotated to that gene. A NULL value is equivalent to a value of zero (no downstream sites will be annotated to a gene).
 #' @param utr TRUE or FALSE. If TRUE then it will look for hits in the 3' and 5' UTRs of genes, otherwise it will not.
-#' @param eqtl TRUE or FALSE. By default TRUE. If TRUE, then hits may be mapped to eQTL loci and therefore be designated as causitive for the gene(s) which the eQTL targets.
+#' @param eqtl TRUE or FALSE. By default TRUE. If TRUE, then hits may be mapped to eQTL loci, and therefore genes effected by those eQTLs be designated as causitive
+#' @param enhancers TRUE or FALSE. By default TRUE. If TRUE, then hits may be mapped to enhancer loci and linked to genes via looping structures and promoters
+#' @param loopDist single integer. By default 0. The maximum allowable distance that an enhancer or promoter can be from a looping region to be annotated to it.
 #' @details
 #' Annotates Hits to genes using a built-in annotation database. Gene annotations come from ENSEMBL genes that have Entrez gene IDs and are in the STRING PPI with threshold >700. Promoter regions are
 #' from ENCODE annotation, a hit in Hits is in a promoter region for a gene if it lies within a promoter region that is a number of bases upstream equal to promoterRange.\cr
@@ -49,7 +51,7 @@ NULL
 #' data("hits.pheno")
 #' test <- runComplexID(Hits = hits,phenoSim=hits.pheno,promoterRange = 10000,upstream = 1000,downstream = 1000,utr = T)
 #' @export
-runComplexID <- function(Hits,phenoSim,promoterRange=100000,eps=1e-10,alpha=0.8,upstream=NULL,downstream=NULL,utr=T,eqtl=T,enhancers=T,geneScoring=sum) {
+runComplexID <- function(Hits,phenoSim,promoterRange=100000,eps=1e-10,alpha=0.8,upstream=NULL,downstream=NULL,utr=T,eqtl=T,enhancers=T,loopDist=0,geneScoring=sum) {
   # Check for errors in input
   if (promoterRange < 0)
     stop("promoterRange must be greater than zero")
@@ -80,7 +82,7 @@ runComplexID <- function(Hits,phenoSim,promoterRange=100000,eps=1e-10,alpha=0.8,
     stop("some hits in Hits have a phenotype that is nonexistant in phenoSim")
 
   # create annotations according to the user's promoter threshold
-  annotations <- .createAnnotationDB(promoterRange,upstream,downstream,utr,eqtl,enhancers)
+  annotations <- .createAnnotationDB(promoterRange,upstream,downstream,utr,eqtl,enhancers,loopDist)
   # get set of seed genes linked to a phenotype
   seedgenes <- .getSeedGenes(Hits,annotations)
   # initialize network
@@ -105,6 +107,7 @@ runComplexID <- function(Hits,phenoSim,promoterRange=100000,eps=1e-10,alpha=0.8,
 #' @param centralGenes character vector. The Entrez Gene IDs of the genes that around which the network plot will be centered
 #' @param order single integer, by default 0, The degree of neighboring genes that will be included. A value of zero means no neighboring genes are included
 #' @param useHugoNames single binary TRUE or FALSE, defaults to TRUE which means the vertices will be labeled by their Hugo names. If FALSE then the vertcies will be labeled by the their EntrezGene IDs. If no labels are desired then set useHugoNames to FALSE and pass "vertex.label=NA" in the ... parameter.
+#' @param colorGenes character vector. By default, is equal to centralGenes. The Entrez Gene IDs of the genes that will be colored red. The rest of the genes will be colored orange.
 #' @param ... arguments passed to plot.igraph function
 #' @details
 #' Plots a graph of the network of genes centered around the centralGenes, including neighbors out to the degree of "order". Any additional parameters for the plot.igraph function may be passed as well. \cr\cr
@@ -119,9 +122,9 @@ runComplexID <- function(Hits,phenoSim,promoterRange=100000,eps=1e-10,alpha=0.8,
 #' test <- runComplexID(Hits = hits,phenoSim=hits.pheno,promoterRange = 10000,upstream = 1000,downstream = 1000,utr = T)
 #' generatePlot(test$scores$Entrez.Gene.ID[1:10])
 #' @export
-generatePlot <- function(centralGenes,order=0,useHugoNames=T,...) {
+generatePlot <- function(centralGenes,order=0,useHugoNames=T,colorGenes=centralGenes,...) {
   graph.to.plot <- induced_subgraph(.complete.igraph,unlist(neighborhood(.complete.igraph,order = order,nodes = as.character(centralGenes))))
-  V(graph.to.plot)$color <- ifelse(names(V(graph.to.plot)) %in% as.character(centralGenes),"red","orange")
+  V(graph.to.plot)$color <- ifelse(names(V(graph.to.plot)) %in% as.character(colorGenes),"red","orange")
   complexes.to.plot <- .corum.subunits[sapply(.corum.subunits,function(x) { sum(as.integer(names(V(graph.to.plot))) %in% x)>0 })]
   complexes.to.plot <- lapply(complexes.to.plot,function(x) { as.character(x)[as.character(x) %in% names(V(graph.to.plot))] })
   if (useHugoNames)
@@ -131,7 +134,7 @@ generatePlot <- function(centralGenes,order=0,useHugoNames=T,...) {
 }
 
 #' @keywords internal
-.createAnnotationDB <- function(promoterRange,upstream,downstream,utr,eqtl,enhancers) {
+.createAnnotationDB <- function(promoterRange,upstream,downstream,utr,eqtl,enhancers,loopDist) {
   tss.regions.gr <- GRanges(seqnames=seqnames(.gene.annotation.gr),
                             ranges=IRanges(start=ifelse(strand(.gene.annotation.gr)=="-",.gene.annotation.gr$Transcription.Start.Site..TSS.,.gene.annotation.gr$Transcription.Start.Site..TSS.-promoterRange),
                                            end=ifelse(strand(.gene.annotation.gr)=="-",.gene.annotation.gr$Transcription.Start.Site..TSS.+promoterRange,.gene.annotation.gr$Transcription.Start.Site..TSS.)),
@@ -158,6 +161,41 @@ generatePlot <- function(centralGenes,order=0,useHugoNames=T,...) {
   ret <- temp.gr
 
   if(enhancers) {
+    new.loops.gr <- GRanges(seqnames=seqnames(.loops.gr),
+                            ranges=IRanges(start=start(.loops.gr)-loopDist,
+                                           end=end(.loops.gr)+loopDist))
+    mcols(new.loops.gr) <- mcols(.loops.gr)
+    enhancer.overlaps <- findOverlaps(new.loops.gr,.all.enhancers.gr,ignore.strand=T)
+    new.loops.gr$enhancer.start <- NA
+    new.loops.gr$enhancer.end <- NA
+    new.loops.gr$enhancer.start[queryHits(enhancer.overlaps)] <- start(.all.enhancers.gr)[subjectHits(enhancer.overlaps)]
+    new.loops.gr$enhancer.end[queryHits(enhancer.overlaps)] <- end(.all.enhancers.gr)[subjectHits(enhancer.overlaps)]
+    new.loops.gr <- new.loops.gr[!is.na(new.loops.gr$enhancer.start)]
+
+    ranges(new.loops.gr) <- IRanges(start=as.integer(new.loops.gr$y1)-loopDist,end=as.integer(new.loops.gr$y2)+loopDist)
+
+    distal.overlaps <- findOverlaps(.encode.promoters.distal.gr,new.loops.gr,ignore.strand=T)
+    .encode.promoters.distal.gr$enhancer.starts <- NA
+    .encode.promoters.distal.gr$enhancer.ends <- NA
+    s <- split(1:length(distal.overlaps),queryHits(distal.overlaps),drop=T)
+    .encode.promoters.distal.gr$enhancer.starts[as.integer(names(s))] <- sapply(s, function(x) {
+      return(new.loops.gr$enhancer.start[subjectHits(distal.overlaps)[x]])
+    })
+    .encode.promoters.distal.gr$enhancer.ends[as.integer(names(s))] <- sapply(s, function(x) {
+      return(new.loops.gr$enhancer.end[subjectHits(distal.overlaps)[x]])
+    })
+
+    prox.overlaps <- findOverlaps(.encode.promoters.prox.gr,new.loops.gr,ignore.strand=T)
+    .encode.promoters.prox.gr$enhancer.starts <- NA
+    .encode.promoters.prox.gr$enhancer.ends <- NA
+    s <- split(1:length(prox.overlaps),queryHits(prox.overlaps),drop=T)
+    .encode.promoters.prox.gr$enhancer.starts[as.integer(names(s))] <- sapply(s, function(x) {
+      return(new.loops.gr$enhancer.start[subjectHits(prox.overlaps)[x]])
+    })
+    .encode.promoters.prox.gr$enhancer.ends[as.integer(names(s))] <- sapply(s, function(x) {
+      return(new.loops.gr$enhancer.end[subjectHits(prox.overlaps)[x]])
+    })
+
     enhancer.annot <- c(.encode.promoters.distal.gr[.encode.promoters.distal.gr$genes != ""],.encode.promoters.prox.gr[.encode.promoters.prox.gr$genes != ""])
     enhancer.annot <- enhancer.annot[!is.na(enhancer.annot$enhancer.starts)]
     time.to.repeat <- sapply(enhancer.annot$enhancer.starts,length)
@@ -176,13 +214,13 @@ generatePlot <- function(centralGenes,order=0,useHugoNames=T,...) {
 
     enhancer.annot$Feature <- "Enhancer"
     ret <- c(ret,enhancer.annot)
+
+    .encode.promoters.distal.gr$enhancer.starts <- NULL
+    .encode.promoters.distal.gr$enhancer.ends <- NULL
+
+    .encode.promoters.prox.gr$enhancer.starts <- NULL
+    .encode.promoters.prox.gr$enhancer.ends <- NULL
   }
-
-  .encode.promoters.distal.gr$enhancer.starts <- NULL
-  .encode.promoters.distal.gr$enhancer.ends <- NULL
-
-  .encode.promoters.prox.gr$enhancer.starts <- NULL
-  .encode.promoters.prox.gr$enhancer.ends <- NULL
 
   ret <- c(ret,.encode.promoters.distal.gr[.encode.promoters.distal.gr$genes != ""],.encode.promoters.prox.gr[.encode.promoters.prox.gr$genes != ""])
 
