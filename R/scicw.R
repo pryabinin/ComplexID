@@ -22,7 +22,7 @@ NULL
 #'
 #' Annotates hits to genes, performs random walk with restarts on a network of protein complexes, and then scores each gene in the network for its association with the pheontype of interest
 #'
-#' @param Hits Granges object with two meta data columns, or a matrix or data frame with at least 4 columns. \cr If it is a Granges object, then the first meta data column is the site's name. The second meta data columns is a phenotype that the site is causitive for.\cr
+#' @param Hits Granges object with two meta data columns, or a matrix or data frame with at least 4 columns. \cr If it is a Granges object, then the first meta data column is the site's name. The second meta data columns is a phenotype that the site is associated with.\cr
 #' If it is a matrix or data frame, then the first column must be the Hit's name, the second column must be chromosome designation, the third column must the base pair position, and the fourth column must a phenotype that the site is causitive for. \cr
 #' For both Grange objects and matrices/dataframes, each entry/row corresponds to one site that is causitive to one phenotype. If a site is causitive in multiple phenotypes then there would be multiple entries for the same site but all with different values in the phenotype column
 #' @param phenoSim matrix or data frame with two columns. The first column are names of phenotypes that match the same phenotypes found in Hits. The second column are phenotype similarity values between the phenotype in that row and the phenotype of interest (values between 0 and 1), with higher values denoting higher similarity
@@ -136,8 +136,9 @@ generatePlot <- function(centralGenes,order=0,useHugoNames=T,colorGenes=centralG
 }
 
 #' Annotates Hits by Genomic Features
+#' @inheritParams runComplexID
 #' @export
-annotateHits <- function(Hits,promoterRange=100000,upstream=NULL,downstream=NULL,gene.body=T,promoters=T,utr=T,eqtl=T,enhancers=T,loopDist=0) {
+annotateHits <- function(Hits,promoterRange=100000,upstream=0,downstream=0,gene.body=T,promoters=T,utr=T,eqtl=T,enhancers=T,loopDist=0) {
   # Check for errors in input
   if (promoterRange < 0)
     stop("promoterRange must be greater than zero")
@@ -165,6 +166,8 @@ annotateHits <- function(Hits,promoterRange=100000,upstream=NULL,downstream=NULL
   # annotate input hits
   mcols(Hits) <- cbind(mcols(Hits),data.frame(1:length(Hits)))
   snpOverlaps <- findOverlaps(Hits,annotations,ignore.strand=T)
+  if (length(snpOverlaps)<1)
+    stop("No input hits were mapped to any gene using these annotation parameters")
   missingHits <- Hits[!(1:length(Hits) %in% queryHits(snpOverlaps))]
   time.to.repeat <- sapply(annotations$genes[subjectHits(snpOverlaps)],length)
 
@@ -287,6 +290,8 @@ annotateHits <- function(Hits,promoterRange=100000,upstream=NULL,downstream=NULL
 #' @keywords internal
 .getSeedGenes <- function(Hits,annotations) {
   snpOverlaps <- findOverlaps(Hits,annotations,ignore.strand=T)
+  if (length(snpOverlaps)<1)
+    stop("No input hits were mapped to any gene using these annotation parameters")
   missingHits <- Hits[!(1:length(Hits) %in% queryHits(snpOverlaps))]
   pheno <- mcols(Hits)[queryHits(snpOverlaps),2]
   time.to.repeat <- sapply(annotations$genes[subjectHits(snpOverlaps)],length)
