@@ -11,6 +11,8 @@ A package with a self-contained annotation database and protein complex network 
 \section{ComplexID functions}{
 
 runComplexID
+generatePlot
+annotateHits
 }
 
 \author{

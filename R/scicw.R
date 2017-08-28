@@ -4,6 +4,8 @@
 #'
 #' @section ComplexID functions:
 #' runComplexID
+#' generatePlot
+#' annotateHits
 #'
 #'
 #' @docType package
@@ -51,7 +53,7 @@ NULL
 #' data("hits.pheno")
 #' test <- runComplexID(Hits = hits,phenoSim=hits.pheno,promoterRange = 10000,upstream = 1000,downstream = 1000,utr = T)
 #' @export
-runComplexID <- function(Hits,phenoSim,promoterRange=100000,eps=1e-10,alpha=0.8,upstream=NULL,downstream=NULL,utr=T,eqtl=T,enhancers=T,loopDist=0,geneScoring=sum) {
+runComplexID <- function(Hits,phenoSim,promoterRange=100000,eps=1e-10,alpha=0.8,upstream=0,downstream=0,gene.body=T,promoters=T,utr=T,eqtl=T,enhancers=T,loopDist=0,geneScoring=sum) {
   # Check for errors in input
   if (promoterRange < 0)
     stop("promoterRange must be greater than zero")
@@ -82,7 +84,7 @@ runComplexID <- function(Hits,phenoSim,promoterRange=100000,eps=1e-10,alpha=0.8,
     stop("some hits in Hits have a phenotype that is nonexistant in phenoSim")
 
   # create annotations according to the user's promoter threshold
-  annotations <- .createAnnotationDB(promoterRange,upstream,downstream,utr,eqtl,enhancers,loopDist)
+  annotations <- .createAnnotationDB(promoterRange,upstream,downstream,gene.body,promoters,utr,eqtl,enhancers,loopDist)
   # get set of seed genes linked to a phenotype
   seedgenes <- .getSeedGenes(Hits,annotations)
   # initialize network
@@ -133,8 +135,66 @@ generatePlot <- function(centralGenes,order=0,useHugoNames=T,colorGenes=centralG
     return(plot.igraph(x=graph.to.plot,mark.groups = complexes.to.plot,...))
 }
 
+#' Annotates Hits by Genomic Features
+#' @export
+annotateHits <- function(Hits,promoterRange=100000,upstream=NULL,downstream=NULL,gene.body=T,promoters=T,utr=T,eqtl=T,enhancers=T,loopDist=0) {
+  # Check for errors in input
+  if (promoterRange < 0)
+    stop("promoterRange must be greater than zero")
+  if (length(upstream)>0)
+    if (upstream<0)
+      stop("upstream must be greater than or equal to zero")
+  if (length(downstream)>0)
+    if(downstream < 0)
+      stop("downstream must be greater than or equal to zero")
+  if (utr != T & utr != F)
+    stop("utr must be either TRUE or FALSE")
+  # Convert matrix to genomic ranges object
+  if (is.matrix(Hits) | is.data.frame(Hits)) {
+    if (ncol(Hits)<5)
+      stop("Hits must have at least 5 columns")
+    Hits <- as.data.frame(Hits)
+    Hits <- makeGRangesFromDataFrame(df = Hits,keep.extra.columns = T,ignore.strand = T,seqnames.field = names(Hits)[2],start.field = names(Hits)[3],end.field = names(Hits)[4])
+  }
+  if (ncol(mcols(Hits)) < 2)
+    stop("Hits must have at least two meta data columns")
+
+  # create annotations according to the user's promoter threshold
+  annotations <- .createAnnotationDB(promoterRange,upstream,downstream,gene.body,promoters,utr,eqtl,enhancers,loopDist)
+
+  # annotate input hits
+  mcols(Hits) <- cbind(mcols(Hits),data.frame(1:length(Hits)))
+  snpOverlaps <- findOverlaps(Hits,annotations,ignore.strand=T)
+  missingHits <- Hits[!(1:length(Hits) %in% queryHits(snpOverlaps))]
+  time.to.repeat <- sapply(annotations$genes[subjectHits(snpOverlaps)],length)
+
+  entrezToHugo <- as.character(.hugoNames)
+  names(entrezToHugo) <- as.character(names(.geneToComplex))
+  out.df <- data.frame(snpName=as.character(unlist(mapply(rep,mcols(Hits)[queryHits(snpOverlaps),1],time.to.repeat))),
+                       entrez.genes=unlist(annotations$genes[subjectHits(snpOverlaps)]),
+                       hugo.names=entrezToHugo[as.character(unlist(annotations$genes[subjectHits(snpOverlaps)]))],
+                       features=unlist(mapply(rep,annotations$Feature[subjectHits(snpOverlaps)],time.to.repeat)),
+                       order=unlist(mapply(rep,mcols(Hits)[queryHits(snpOverlaps),ncol(mcols(Hits))],time.to.repeat)),
+                       stringsAsFactors = F)
+
+  out.df <- aggregate(cbind(entrez.genes,hugo.names,features,snpName)~order, data = unique(out.df), paste, collapse = ";")
+  out.df$snpName <- as.character(sapply(strsplit(out.df$snpName,";"),"[[",1))
+  out.df <- out.df[,c(5,2,3,4,1)]
+  temp.df <- data.frame(snpName=mcols(missingHits)[,1],
+                        entrez.genes=NA,
+                        hugo.names=NA,
+                        features=NA,
+                        order=mcols(missingHits)[,ncol(mcols(missingHits))],
+                        stringsAsFactors = F)
+
+  out.df <- rbind(out.df,temp.df)
+  out.df <- out.df[order(out.df$order,decreasing = F),]
+  out.df$order <- NULL
+  return(out.df)
+}
+
 #' @keywords internal
-.createAnnotationDB <- function(promoterRange,upstream,downstream,utr,eqtl,enhancers,loopDist) {
+.createAnnotationDB <- function(promoterRange,upstream,downstream,gene.body,promoters,utr,eqtl,enhancers,loopDist) {
   tss.regions.gr <- GRanges(seqnames=seqnames(.gene.annotation.gr),
                             ranges=IRanges(start=ifelse(strand(.gene.annotation.gr)=="-",.gene.annotation.gr$Transcription.Start.Site..TSS.,.gene.annotation.gr$Transcription.Start.Site..TSS.-promoterRange),
                                            end=ifelse(strand(.gene.annotation.gr)=="-",.gene.annotation.gr$Transcription.Start.Site..TSS.+promoterRange,.gene.annotation.gr$Transcription.Start.Site..TSS.)),
@@ -156,9 +216,12 @@ generatePlot <- function(centralGenes,order=0,useHugoNames=T,colorGenes=centralG
     return(tss.regions.gr$genes[subjectHits(promoter.prox.tss.hits)[x]])
   })
 
-  temp.gr <- .gene.annotation.gr
-  temp.gr$Transcription.Start.Site..TSS. <- NULL
-  ret <- temp.gr
+  if (gene.body) {
+    ret <- .gene.annotation.gr
+    ret$Transcription.Start.Site..TSS. <- NULL
+  }
+  else
+    ret <- GRanges()
 
   if(enhancers) {
     new.loops.gr <- GRanges(seqnames=seqnames(.loops.gr),
@@ -166,51 +229,21 @@ generatePlot <- function(centralGenes,order=0,useHugoNames=T,colorGenes=centralG
                                            end=end(.loops.gr)+loopDist))
     mcols(new.loops.gr) <- mcols(.loops.gr)
     enhancer.overlaps <- findOverlaps(new.loops.gr,.all.enhancers.gr,ignore.strand=T)
-    new.loops.gr$enhancer.start <- NA
-    new.loops.gr$enhancer.end <- NA
-    new.loops.gr$enhancer.start[queryHits(enhancer.overlaps)] <- start(.all.enhancers.gr)[subjectHits(enhancer.overlaps)]
-    new.loops.gr$enhancer.end[queryHits(enhancer.overlaps)] <- end(.all.enhancers.gr)[subjectHits(enhancer.overlaps)]
-    new.loops.gr <- new.loops.gr[!is.na(new.loops.gr$enhancer.start)]
 
-    ranges(new.loops.gr) <- IRanges(start=as.integer(new.loops.gr$y1)-loopDist,end=as.integer(new.loops.gr$y2)+loopDist)
+    new.loops.gr <- GRanges(seqnames=as.character(seqnames(new.loops.gr)[queryHits(enhancer.overlaps)]),
+                            ranges=IRanges(start=as.integer(new.loops.gr$y1)[queryHits(enhancer.overlaps)]-loopDist,
+                                           end=as.integer(new.loops.gr$y2)[queryHits(enhancer.overlaps)]+loopDist))
+    new.loops.gr$enhancer.start <- start(.all.enhancers.gr)[subjectHits(enhancer.overlaps)]
+    new.loops.gr$enhancer.end <- end(.all.enhancers.gr)[subjectHits(enhancer.overlaps)]
 
-    distal.overlaps <- findOverlaps(.encode.promoters.distal.gr,new.loops.gr,ignore.strand=T)
-    .encode.promoters.distal.gr$enhancer.starts <- NA
-    .encode.promoters.distal.gr$enhancer.ends <- NA
-    s <- split(1:length(distal.overlaps),queryHits(distal.overlaps),drop=T)
-    .encode.promoters.distal.gr$enhancer.starts[as.integer(names(s))] <- sapply(s, function(x) {
-      return(new.loops.gr$enhancer.start[subjectHits(distal.overlaps)[x]])
-    })
-    .encode.promoters.distal.gr$enhancer.ends[as.integer(names(s))] <- sapply(s, function(x) {
-      return(new.loops.gr$enhancer.end[subjectHits(distal.overlaps)[x]])
-    })
+    promoters.with.genes <- c(.encode.promoters.distal.gr[.encode.promoters.distal.gr$genes != ""],.encode.promoters.prox.gr[.encode.promoters.prox.gr$genes != ""])
 
-    prox.overlaps <- findOverlaps(.encode.promoters.prox.gr,new.loops.gr,ignore.strand=T)
-    .encode.promoters.prox.gr$enhancer.starts <- NA
-    .encode.promoters.prox.gr$enhancer.ends <- NA
-    s <- split(1:length(prox.overlaps),queryHits(prox.overlaps),drop=T)
-    .encode.promoters.prox.gr$enhancer.starts[as.integer(names(s))] <- sapply(s, function(x) {
-      return(new.loops.gr$enhancer.start[subjectHits(prox.overlaps)[x]])
-    })
-    .encode.promoters.prox.gr$enhancer.ends[as.integer(names(s))] <- sapply(s, function(x) {
-      return(new.loops.gr$enhancer.end[subjectHits(prox.overlaps)[x]])
-    })
-
-    enhancer.annot <- c(.encode.promoters.distal.gr[.encode.promoters.distal.gr$genes != ""],.encode.promoters.prox.gr[.encode.promoters.prox.gr$genes != ""])
-    enhancer.annot <- enhancer.annot[!is.na(enhancer.annot$enhancer.starts)]
-    time.to.repeat <- sapply(enhancer.annot$enhancer.starts,length)
-
-    temp.genes=enhancer.annot$genes[unlist(mapply(rep,1:length(enhancer.annot),time.to.repeat))]
-    enhancer.annot <- GRanges(seqnames=unlist(mapply(rep, as.character(seqnames(enhancer.annot)), time.to.repeat)),
-                              ranges=IRanges(start=unlist(mapply(rep, start(enhancer.annot), time.to.repeat)),
-                                             end=unlist(mapply(rep, end(enhancer.annot), time.to.repeat))))
-    enhancer.annot$genes=temp.genes
-
-    time.to.repeat <- sapply(enhancer.annot$genes,length)
-    enhancer.annot <- GRanges(seqnames=unlist(mapply(rep, as.character(seqnames(enhancer.annot)), time.to.repeat)),
-                              ranges=IRanges(start=unlist(mapply(rep, start(enhancer.annot), time.to.repeat)),
-                                             end=unlist(mapply(rep, end(enhancer.annot), time.to.repeat))),
-                              genes=unlist(enhancer.annot$genes))
+    promoter.overlaps <- findOverlaps(new.loops.gr,promoters.with.genes,ignore.strand=T)
+    time.to.repeat <- sapply(promoters.with.genes$genes[subjectHits(promoter.overlaps)],length)
+    enhancer.annot <- GRanges(seqnames=unlist(mapply(rep,as.character(seqnames(new.loops.gr))[queryHits(promoter.overlaps)],time.to.repeat)),
+                              ranges=IRanges(start=unlist(mapply(rep,as.integer(new.loops.gr$enhancer.start)[queryHits(promoter.overlaps)],time.to.repeat)),
+                                             end=unlist(mapply(rep,as.integer(new.loops.gr$enhancer.end)[queryHits(promoter.overlaps)],time.to.repeat))))
+    enhancer.annot$genes <- unlist(promoters.with.genes$genes[subjectHits(promoter.overlaps)])
 
     enhancer.annot$Feature <- "Enhancer"
     ret <- c(ret,enhancer.annot)
@@ -222,12 +255,13 @@ generatePlot <- function(centralGenes,order=0,useHugoNames=T,colorGenes=centralG
     .encode.promoters.prox.gr$enhancer.ends <- NULL
   }
 
-  ret <- c(ret,.encode.promoters.distal.gr[.encode.promoters.distal.gr$genes != ""],.encode.promoters.prox.gr[.encode.promoters.prox.gr$genes != ""])
+  if (promoters)
+    ret <- c(ret,.encode.promoters.distal.gr[.encode.promoters.distal.gr$genes != ""],.encode.promoters.prox.gr[.encode.promoters.prox.gr$genes != ""])
 
   if (utr)
     ret <- c(ret,.utr.entrez.gr)
 
-  if (length(upstream)>0) {
+  if (upstream>0) {
     upstream.gr <- GRanges(seqnames=seqnames(.gene.annotation.gr),
                               ranges=IRanges(start=ifelse(strand(.gene.annotation.gr)=="-",.gene.annotation.gr$Transcription.Start.Site..TSS.,.gene.annotation.gr$Transcription.Start.Site..TSS.-upstream),
                                              end=ifelse(strand(.gene.annotation.gr)=="-",.gene.annotation.gr$Transcription.Start.Site..TSS.+upstream,.gene.annotation.gr$Transcription.Start.Site..TSS.)),
@@ -236,7 +270,7 @@ generatePlot <- function(centralGenes,order=0,useHugoNames=T,colorGenes=centralG
     ret <- c(ret,upstream.gr)
   }
 
-  if (length(downstream)>0) {
+  if (downstream>0) {
     downstream.gr <- GRanges(seqnames=seqnames(.gene.annotation.gr),
                            ranges=IRanges(start=ifelse(strand(.gene.annotation.gr)=="-",end(.gene.annotation.gr)-downstream,end(.gene.annotation.gr)),
                                           end=ifelse(strand(.gene.annotation.gr)=="-",end(.gene.annotation.gr),end(.gene.annotation.gr)+downstream)),

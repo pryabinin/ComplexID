@@ -5,8 +5,9 @@
 \title{Annotates Hits, Performs Random Walk, and Scores Genes}
 \usage{
 runComplexID(Hits, phenoSim, promoterRange = 1e+05, eps = 1e-10,
-  alpha = 0.8, upstream = NULL, downstream = NULL, utr = T, eqtl = T,
-  enhancers = T, loopDist = 0, geneScoring = sum)
+  alpha = 0.8, upstream = 0, downstream = 0, gene.body = T,
+  promoters = T, utr = T, eqtl = T, enhancers = T, loopDist = 0,
+  geneScoring = sum)
 }
 \arguments{
 \item{Hits}{Granges object with two meta data columns, or a matrix or data frame with at least 4 columns. \cr If it is a Granges object, then the first meta data column is the site's name. The second meta data columns is a phenotype that the site is causitive for.\cr
