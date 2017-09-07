@@ -7,7 +7,7 @@
 runComplexID(Hits, phenoSim, promoterRange = 1e+05, eps = 1e-10,
   alpha = 0.8, upstream = 0, downstream = 0, gene.body = T,
   promoters = T, utr = T, eqtl = T, enhancers = T, loopDist = 0,
-  geneScoring = sum)
+  non_proteins = F, geneScoring = sum)
 }
 \arguments{
 \item{Hits}{Granges object with two meta data columns, or a matrix or data frame with at least 4 columns. \cr If it is a Granges object, then the first meta data column is the site's name. The second meta data columns is a phenotype that the site is associated with.\cr
@@ -22,9 +22,9 @@ For both Grange objects and matrices/dataframes, each entry/row corresponds to o
 
 \item{alpha}{single numeric in the range of (0,1]. The weight given to the vector of initialized values for the random walk, higher value of alpha means more weight for the initialized values}
 
-\item{upstream}{single integer or NULL. How far upstream of a transcription start site a hit can be for it to be annotated to that gene. A NULL value is equivalent to a value of zero (no upstream sites will be annotated to a gene unless they lie in a promoter region, see promoterRange parameter).}
+\item{upstream}{single integer. By default 0. How far upstream of a transcription start site a hit can be for it to be annotated to that gene. A NULL value is equivalent to a value of zero (no upstream sites will be annotated to a gene unless they lie in a promoter region, see promoterRange parameter).}
 
-\item{downstream}{single integer or NULL. How far downstream of a transcription start site a hit can be for it to be annotated to that gene. A NULL value is equivalent to a value of zero (no downstream sites will be annotated to a gene).}
+\item{downstream}{single integer. By default 0. How far downstream of a transcription start site a hit can be for it to be annotated to that gene. A NULL value is equivalent to a value of zero (no downstream sites will be annotated to a gene).}
 
 \item{utr}{TRUE or FALSE. If TRUE then it will look for hits in the 3' and 5' UTRs of genes, otherwise it will not.}
 
@@ -33,22 +33,26 @@ For both Grange objects and matrices/dataframes, each entry/row corresponds to o
 \item{enhancers}{TRUE or FALSE. By default TRUE. If TRUE, then hits may be mapped to enhancer loci and linked to genes via looping structures and promoters}
 
 \item{loopDist}{single integer. By default 0. The maximum allowable distance that an enhancer or promoter can be from a looping region to be annotated to it.}
+
+\item{non_proteins}{TRUE or FALSE. By default FALSE. If TRUE then hits may be mapped to non-protein regions, if FALSE then that annotation will not be used.}
+
+\item{geneScoring}{a function that takes a vectors and outputs a single number. By default the "sum" function. This is the function that will determine the score of a gene based on the complexes that it belongs to. The input of the function is a vector of numerical values that represent the scores of the complexes that a gene belongs to. The output of the function should be a single numerical value.}
 }
 \value{
 A list with two objects: a data frame called "scores" and a GRanges object "missingHits"
-The data frame "scores" has six columns showing the scores of each gene, related to how much that gene is important to the query phenotype, as well as other information about the gene. It is ordered with the highest scoring genes first.\cr
-The first column are Entrez Gene IDs, the second column are HUGO gene names, the third column are the names of the complexes that gene is part of, the fourth columns is the score for the gene, the fifth column are the features of that gene that have a hit in them, and the sixth column is the number of hits that were annotated to that gene.
+The data frame "scores" has seven columns showing the scores of each gene, related to how much that gene is important to the query phenotype, as well as other information about the gene. It is ordered with the highest scoring genes first.\cr
+The first are HUGO gene names, the second column are the names of the complexes that gene is part of, the third columns is the score for the gene, the fourth column says whether or not the gene was in the PPI and/or a complex, the fifth column says whether or not the gene is a protein coding gene, the sixth column are the features of that gene that have a hit in them, and the seventh column is the number of hits that were annotated to that gene.
 The GRanges object "missingHits" lists all of the input hits that were not mapped to any gene.
 }
 \description{
 Annotates hits to genes, performs random walk with restarts on a network of protein complexes, and then scores each gene in the network for its association with the pheontype of interest
 }
 \details{
-Annotates Hits to genes using a built-in annotation database. Gene annotations come from ENSEMBL genes that have Entrez gene IDs and are in the STRING PPI with threshold >700. Promoter regions are
+Annotates Hits to genes using a built-in annotation database. Gene annotations come from the ENSEMBL annotation of GRCH37. Promoter regions are
 from ENCODE annotation, a hit in Hits is in a promoter region for a gene if it lies within a promoter region that is a number of bases upstream equal to promoterRange.\cr
 \cr
 After the causitive genes for each endophenotype are identified, it performs a Random Walk with Restarts on a pre-constructed protein complex network as in the RWPCN method.
-The protein complex network was constructed in a similar way is in the RWPCN method. For a PPI we used STRING with a threshold cutoff of 700. Protein IDs in STRING were then mapped to Entrez gene ids.
+The protein complex network was constructed in a similar way is in the RWPCN method. For a PPI we used STRING with a threshold cutoff of 700. Protein IDs in STRING were mapped to approved HUGO names using ENSEMBL and HGNC.
 Protein complexes were retrieved from CORUM. Any complex with no genes in the PPI was removed along with 5 of the largest complexes (more than 70 subunits) \cr
 \cr
 A random walk with restarts is initialized and performed as in RWPCN then all genes in the PPI and complexes are scored according to the weights in the complex network.

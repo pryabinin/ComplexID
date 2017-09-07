@@ -6,7 +6,7 @@
 \usage{
 annotateHits(Hits, promoterRange = 1e+05, upstream = 0, downstream = 0,
   gene.body = T, promoters = T, utr = T, eqtl = T, enhancers = T,
-  loopDist = 0)
+  non_proteins = F, loopDist = 0)
 }
 \arguments{
 \item{Hits}{Granges object with two meta data columns, or a matrix or data frame with at least 4 columns. \cr If it is a Granges object, then the first meta data column is the site's name. The second meta data columns is a phenotype that the site is associated with.\cr
@@ -15,15 +15,17 @@ For both Grange objects and matrices/dataframes, each entry/row corresponds to o
 
 \item{promoterRange}{single integer greater than or equal to zero. How many bases to look upstream of a TSS of a gene in order to find a promoter region for a gene.}
 
-\item{upstream}{single integer or NULL. How far upstream of a transcription start site a hit can be for it to be annotated to that gene. A NULL value is equivalent to a value of zero (no upstream sites will be annotated to a gene unless they lie in a promoter region, see promoterRange parameter).}
+\item{upstream}{single integer. By default 0. How far upstream of a transcription start site a hit can be for it to be annotated to that gene. A NULL value is equivalent to a value of zero (no upstream sites will be annotated to a gene unless they lie in a promoter region, see promoterRange parameter).}
 
-\item{downstream}{single integer or NULL. How far downstream of a transcription start site a hit can be for it to be annotated to that gene. A NULL value is equivalent to a value of zero (no downstream sites will be annotated to a gene).}
+\item{downstream}{single integer. By default 0. How far downstream of a transcription start site a hit can be for it to be annotated to that gene. A NULL value is equivalent to a value of zero (no downstream sites will be annotated to a gene).}
 
 \item{utr}{TRUE or FALSE. If TRUE then it will look for hits in the 3' and 5' UTRs of genes, otherwise it will not.}
 
 \item{eqtl}{TRUE or FALSE. By default TRUE. If TRUE, then hits may be mapped to eQTL loci, and therefore genes effected by those eQTLs be designated as causitive}
 
 \item{enhancers}{TRUE or FALSE. By default TRUE. If TRUE, then hits may be mapped to enhancer loci and linked to genes via looping structures and promoters}
+
+\item{non_proteins}{TRUE or FALSE. By default FALSE. If TRUE then hits may be mapped to non-protein regions, if FALSE then that annotation will not be used.}
 
 \item{loopDist}{single integer. By default 0. The maximum allowable distance that an enhancer or promoter can be from a looping region to be annotated to it.}
 }
