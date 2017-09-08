@@ -219,7 +219,7 @@ annotateHits <- function(Hits,promoterRange=100000,upstream=0,downstream=0,gene.
   })
 
   promoter.prox.tss.hits <- findOverlaps(.encode.promoters.prox.gr,tss.regions.gr)
-  split.hits.idx <- split(1:length(promoter.distal.tss.hits),queryHits(promoter.distal.tss.hits),drop=T)
+  split.hits.idx <- split(1:length(promoter.prox.tss.hits),queryHits(promoter.prox.tss.hits),drop=T)
   .encode.promoters.prox.gr$genes <- ""
   .encode.promoters.prox.gr$Feature <- "Distal_Promoter"
   .encode.promoters.prox.gr$genes[as.integer(names(split.hits.idx))] <- sapply(split.hits.idx, function(x) {
