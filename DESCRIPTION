@@ -1,11 +1,10 @@
 Package: ComplexID
 Type: Package
-Title: What the Package Does (Title Case)
+Title: Integrated Hit Annotations and Random Walk of Complex Network
 Version: 0.1.0
-Author: Who wrote it
-Maintainer: The package maintainer <yourself@somewhere.net>
-Description: More about what it does (maybe more than one line)
-    Use four spaces when indenting paragraphs within the Description.
+Author: Peter Ryabinin
+Maintainer: Peter Ryabinin <ryabinip@ohsu.edu>
+Description: A package with a self-contained annotation database and protein complex network for finding causitive genes for a phenotype of interest. Also contains function for just annotating hits and plotting network around genes of interest.
 License: What license is it under?
 Encoding: UTF-8
 LazyData: false

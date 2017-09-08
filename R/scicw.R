@@ -23,8 +23,8 @@ NULL
 #' Annotates hits to genes, performs random walk with restarts on a network of protein complexes, and then scores each gene in the network for its association with the pheontype of interest
 #'
 #' @param Hits Granges object with two meta data columns, or a matrix or data frame with at least 4 columns. \cr If it is a Granges object, then the first meta data column is the site's name. The second meta data columns is a phenotype that the site is associated with.\cr
-#' If it is a matrix or data frame, then the first column must be the Hit's name, the second column must be chromosome designation, the third column must the base pair position, and the fourth column must a phenotype that the site is causitive for. \cr
-#' For both Grange objects and matrices/dataframes, each entry/row corresponds to one site that is causitive to one phenotype. If a site is causitive in multiple phenotypes then there would be multiple entries for the same site but all with different values in the phenotype column
+#' If it is a matrix or data frame, then the first column must be the Hit's name, the second column must be chromosome designation, the third column must the base pair position, and the fourth column must a phenotype that the site is associated with. \cr
+#' For both Grange objects and matrices/dataframes, each entry/row corresponds to one site that is associated to one phenotype. If a site is associated in multiple phenotypes then there would be multiple entries for the same site but all with different values in the phenotype column
 #' @param phenoSim matrix or data frame with two columns. The first column are names of phenotypes that match the same phenotypes found in Hits. The second column are phenotype similarity values between the phenotype in that row and the phenotype of interest (values between 0 and 1), with higher values denoting higher similarity
 #' @param promoterRange single integer greater than or equal to zero. How many bases to look upstream of a TSS of a gene in order to find a promoter region for a gene.
 #' @param eps single numeric, must be greater than zero. L1 norm threshold between current and previous interations of random walk at which to terminate the random walk
@@ -32,7 +32,7 @@ NULL
 #' @param upstream single integer. By default 0. How far upstream of a transcription start site a hit can be for it to be annotated to that gene. A NULL value is equivalent to a value of zero (no upstream sites will be annotated to a gene unless they lie in a promoter region, see promoterRange parameter).
 #' @param downstream single integer. By default 0. How far downstream of a transcription start site a hit can be for it to be annotated to that gene. A NULL value is equivalent to a value of zero (no downstream sites will be annotated to a gene).
 #' @param utr TRUE or FALSE. If TRUE then it will look for hits in the 3' and 5' UTRs of genes, otherwise it will not.
-#' @param eqtl TRUE or FALSE. By default TRUE. If TRUE, then hits may be mapped to eQTL loci, and therefore genes effected by those eQTLs be designated as causitive
+#' @param eqtl TRUE or FALSE. By default TRUE. If TRUE, then hits may be mapped to eQTL loci, and therefore genes effected by those eQTLs be designated as associated
 #' @param enhancers TRUE or FALSE. By default TRUE. If TRUE, then hits may be mapped to enhancer loci and linked to genes via looping structures and promoters
 #' @param loopDist single integer. By default 0. The maximum allowable distance that an enhancer or promoter can be from a looping region to be annotated to it.
 #' @param non_proteins TRUE or FALSE. By default FALSE. If TRUE then hits may be mapped to non-protein regions, if FALSE then that annotation will not be used.
@@ -41,7 +41,7 @@ NULL
 #' Annotates Hits to genes using a built-in annotation database. Gene annotations come from the ENSEMBL annotation of GRCH37. Promoter regions are
 #' from ENCODE annotation, a hit in Hits is in a promoter region for a gene if it lies within a promoter region that is a number of bases upstream equal to promoterRange.\cr
 #' \cr
-#' After the causitive genes for each endophenotype are identified, it performs a Random Walk with Restarts on a pre-constructed protein complex network as in the RWPCN method.
+#' After the associated genes for each endophenotype are identified, it performs a Random Walk with Restarts on a pre-constructed protein complex network as in the RWPCN method.
 #' The protein complex network was constructed in a similar way is in the RWPCN method. For a PPI we used STRING with a threshold cutoff of 700. Protein IDs in STRING were mapped to approved HUGO names using ENSEMBL and HGNC.
 #' Protein complexes were retrieved from CORUM. Any complex with no genes in the PPI was removed along with 5 of the largest complexes (more than 70 subunits) \cr
 #' \cr
