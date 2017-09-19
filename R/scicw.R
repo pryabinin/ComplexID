@@ -211,20 +211,24 @@ annotateHits <- function(Hits,promoterRange=100000,upstream=0,downstream=0,gene.
                             strand=strand(.gene.annotation.gr),mcols(.gene.annotation.gr))
 
   promoter.distal.tss.hits <- findOverlaps(.encode.promoters.distal.gr,tss.regions.gr)
-  split.hits.idx <- split(1:length(promoter.distal.tss.hits),queryHits(promoter.distal.tss.hits),drop=T)
   .encode.promoters.distal.gr$genes <- ""
   .encode.promoters.distal.gr$Feature <- "Distal_Promoter"
-  .encode.promoters.distal.gr$genes[as.integer(names(split.hits.idx))] <- sapply(split.hits.idx, function(x) {
-    return(tss.regions.gr$genes[subjectHits(promoter.distal.tss.hits)[x]])
-  })
+  if (length(promoter.distal.tss.hits) > 0) {
+    split.hits.idx <- split(1:length(promoter.distal.tss.hits),queryHits(promoter.distal.tss.hits),drop=T)
+    .encode.promoters.distal.gr$genes[as.integer(names(split.hits.idx))] <- sapply(split.hits.idx, function(x) {
+      return(tss.regions.gr$genes[subjectHits(promoter.distal.tss.hits)[x]])
+    })
+  }
 
   promoter.prox.tss.hits <- findOverlaps(.encode.promoters.prox.gr,tss.regions.gr)
-  split.hits.idx <- split(1:length(promoter.prox.tss.hits),queryHits(promoter.prox.tss.hits),drop=T)
   .encode.promoters.prox.gr$genes <- ""
   .encode.promoters.prox.gr$Feature <- "Distal_Promoter"
-  .encode.promoters.prox.gr$genes[as.integer(names(split.hits.idx))] <- sapply(split.hits.idx, function(x) {
-    return(tss.regions.gr$genes[subjectHits(promoter.prox.tss.hits)[x]])
-  })
+  if (length(promoter.prox.tss.hits) > 0) {
+    split.hits.idx <- split(1:length(promoter.prox.tss.hits),queryHits(promoter.prox.tss.hits),drop=T)
+    .encode.promoters.prox.gr$genes[as.integer(names(split.hits.idx))] <- sapply(split.hits.idx, function(x) {
+      return(tss.regions.gr$genes[subjectHits(promoter.prox.tss.hits)[x]])
+    })
+  }
 
   if (gene.body) {
     ret <- .gene.annotation.gr
