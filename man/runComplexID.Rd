@@ -7,11 +7,11 @@
 runComplexID(Hits, phenoSim, promoterRange = 1e+05, eps = 1e-10,
   alpha = 0.8, upstream = 0, downstream = 0, gene.body = T,
   promoters = T, utr = T, eqtl = T, enhancers = T, loopDist = 0,
-  non_proteins = F, geneScoring = sum)
+  non_proteins = F, geneScoring = sum, useAllTSS = T)
 }
 \arguments{
-\item{Hits}{Granges object with two meta data columns, or a matrix or data frame with at least 4 columns. \cr If it is a Granges object, then the first meta data column is the site's name. The second meta data columns is a phenotype that the site is associated with.\cr
-If it is a matrix or data frame, then the first column must be the Hit's name, the second column must be chromosome designation, the third column must the base pair position, and the fourth column must a phenotype that the site is associated with. \cr
+\item{Hits}{Granges object with two meta data columns, or a matrix or data frame with at least 5 columns. \cr If it is a Granges object, then the first meta data column is the site's name. The second meta data columns is a phenotype that the site is associated with.\cr
+If it is a matrix or data frame, then the first column must be the Hit's name, the second column must be chromosome designation, the third column must the starting base pair position, the fourth column must be the ending base pair position (equal to starting bp position for a standard SNP) and the fifth column must a phenotype that the site is associated with. \cr
 For both Grange objects and matrices/dataframes, each entry/row corresponds to one site that is associated to one phenotype. If a site is associated in multiple phenotypes then there would be multiple entries for the same site but all with different values in the phenotype column}
 
 \item{phenoSim}{matrix or data frame with two columns. The first column are names of phenotypes that match the same phenotypes found in Hits. The second column are phenotype similarity values between the phenotype in that row and the phenotype of interest (values between 0 and 1), with higher values denoting higher similarity}
@@ -37,6 +37,8 @@ For both Grange objects and matrices/dataframes, each entry/row corresponds to o
 \item{non_proteins}{TRUE or FALSE. By default FALSE. If TRUE then hits may be mapped to non-protein regions, if FALSE then that annotation will not be used.}
 
 \item{geneScoring}{a function that takes a vectors and outputs a single number. By default the "sum" function. This is the function that will determine the score of a gene based on the complexes that it belongs to. The input of the function is a vector of numerical values that represent the scores of the complexes that a gene belongs to. The output of the function should be a single numerical value.}
+
+\item{useAllTSS}{TRUE or FALSE. By default TRUE. If TRUE, then all unique transcription start sites will be considered when looking at upstream regions of a gene (for promoters and upstream regions). If FALSE, it will a single start site for a gene, namely the start of the gene.}
 }
 \value{
 A list with two objects: a data frame called "scores" and a GRanges object "missingHits"
