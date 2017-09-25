@@ -22,8 +22,8 @@ NULL
 #'
 #' Annotates hits to genes, performs random walk with restarts on a network of protein complexes, and then scores each gene in the network for its association with the pheontype of interest
 #'
-#' @param Hits Granges object with two meta data columns, or a matrix or data frame with at least 4 columns. \cr If it is a Granges object, then the first meta data column is the site's name. The second meta data columns is a phenotype that the site is associated with.\cr
-#' If it is a matrix or data frame, then the first column must be the Hit's name, the second column must be chromosome designation, the third column must the base pair position, and the fourth column must a phenotype that the site is associated with. \cr
+#' @param Hits Granges object with two meta data columns, or a matrix or data frame with at least 5 columns. \cr If it is a Granges object, then the first meta data column is the site's name. The second meta data columns is a phenotype that the site is associated with.\cr
+#' If it is a matrix or data frame, then the first column must be the Hit's name, the second column must be chromosome designation, the third column must the starting base pair position, the fourth column must be the ending base pair position (equal to starting bp position for a standard SNP) and the fifth column must a phenotype that the site is associated with. \cr
 #' For both Grange objects and matrices/dataframes, each entry/row corresponds to one site that is associated to one phenotype. If a site is associated in multiple phenotypes then there would be multiple entries for the same site but all with different values in the phenotype column
 #' @param phenoSim matrix or data frame with two columns. The first column are names of phenotypes that match the same phenotypes found in Hits. The second column are phenotype similarity values between the phenotype in that row and the phenotype of interest (values between 0 and 1), with higher values denoting higher similarity
 #' @param promoterRange single integer greater than or equal to zero. How many bases to look upstream of a TSS of a gene in order to find a promoter region for a gene.
@@ -37,6 +37,7 @@ NULL
 #' @param loopDist single integer. By default 0. The maximum allowable distance that an enhancer or promoter can be from a looping region to be annotated to it.
 #' @param non_proteins TRUE or FALSE. By default FALSE. If TRUE then hits may be mapped to non-protein regions, if FALSE then that annotation will not be used.
 #' @param geneScoring a function that takes a vectors and outputs a single number. By default the "sum" function. This is the function that will determine the score of a gene based on the complexes that it belongs to. The input of the function is a vector of numerical values that represent the scores of the complexes that a gene belongs to. The output of the function should be a single numerical value.
+#' @param useAllTSS TRUE or FALSE. By default TRUE. If TRUE, then all unique transcription start sites will be considered when looking at upstream regions of a gene (for promoters and upstream regions). If FALSE, it will a single start site for a gene, namely the start of the gene.
 #' @details
 #' Annotates Hits to genes using a built-in annotation database. Gene annotations come from the ENSEMBL annotation of GRCH37. Promoter regions are
 #' from ENCODE annotation, a hit in Hits is in a promoter region for a gene if it lies within a promoter region that is a number of bases upstream equal to promoterRange.\cr
@@ -55,7 +56,7 @@ NULL
 #' data("hits.pheno")
 #' test <- runComplexID(Hits = hits,phenoSim=hits.pheno,promoterRange = 10000,upstream = 1000,downstream = 1000,utr = T)
 #' @export
-runComplexID <- function(Hits,phenoSim,promoterRange=100000,eps=1e-10,alpha=0.8,upstream=0,downstream=0,gene.body=T,promoters=T,utr=T,eqtl=T,enhancers=T,loopDist=0,non_proteins=F,geneScoring=sum) {
+runComplexID <- function(Hits,phenoSim,promoterRange=100000,eps=1e-10,alpha=0.8,upstream=0,downstream=0,gene.body=T,promoters=T,utr=T,eqtl=T,enhancers=T,loopDist=0,non_proteins=F,geneScoring=sum,useAllTSS=T) {
   # Check for errors in input
   if (promoterRange < 0)
     stop("promoterRange must be greater than zero")
@@ -86,7 +87,7 @@ runComplexID <- function(Hits,phenoSim,promoterRange=100000,eps=1e-10,alpha=0.8,
     stop("some hits in Hits have a phenotype that is nonexistant in phenoSim")
 
   # create annotations according to the user's promoter threshold
-  annotations <- .createAnnotationDB(promoterRange,upstream,downstream,gene.body,promoters,utr,eqtl,enhancers,non_proteins,loopDist)
+  annotations <- .createAnnotationDB(promoterRange,upstream,downstream,gene.body,promoters,utr,eqtl,enhancers,non_proteins,loopDist,useAllTSS)
   # get set of seed genes linked to a phenotype
   seedgenes <- .getSeedGenes(Hits,annotations)
   # initialize network
@@ -149,7 +150,7 @@ generatePlot <- function(centralGenes,order=0,colorGenes=centralGenes,...) {
 #' Annotates Hits by Genomic Features
 #' @inheritParams runComplexID
 #' @export
-annotateHits <- function(Hits,promoterRange=100000,upstream=0,downstream=0,gene.body=T,promoters=T,utr=T,eqtl=T,enhancers=T,non_proteins=F,loopDist=0) {
+annotateHits <- function(Hits,promoterRange=100000,upstream=0,downstream=0,gene.body=T,promoters=T,utr=T,eqtl=T,enhancers=T,non_proteins=F,loopDist=0,useAllTSS=T) {
   # Check for errors in input
   if (promoterRange < 0)
     stop("promoterRange must be greater than zero")
@@ -172,7 +173,7 @@ annotateHits <- function(Hits,promoterRange=100000,upstream=0,downstream=0,gene.
     stop("Hits must have at least two meta data columns")
 
   # create annotations according to the user's promoter threshold
-  annotations <- .createAnnotationDB(promoterRange,upstream,downstream,gene.body,promoters,utr,eqtl,enhancers,non_proteins,loopDist)
+  annotations <- .createAnnotationDB(promoterRange,upstream,downstream,gene.body,promoters,utr,eqtl,enhancers,non_proteins,loopDist,useAllTSS)
 
   # annotate input hits
   mcols(Hits) <- cbind(mcols(Hits),data.frame(1:length(Hits)))
@@ -204,11 +205,17 @@ annotateHits <- function(Hits,promoterRange=100000,upstream=0,downstream=0,gene.
 }
 
 #' @keywords internal
-.createAnnotationDB <- function(promoterRange,upstream,downstream,gene.body,promoters,utr,eqtl,enhancers,non_proteins,loopDist) {
+.createAnnotationDB <- function(promoterRange,upstream,downstream,gene.body,promoters,utr,eqtl,enhancers,non_proteins,loopDist,useAllTSS) {
+  if (useAllTSS)
   tss.regions.gr <- GRanges(seqnames=seqnames(.gene.annotation.gr),
                             ranges=IRanges(start=ifelse(strand(.gene.annotation.gr)=="-",.gene.annotation.gr$Transcription.start.site..TSS.,.gene.annotation.gr$Transcription.start.site..TSS.-promoterRange),
                                            end=ifelse(strand(.gene.annotation.gr)=="-",.gene.annotation.gr$Transcription.start.site..TSS.+promoterRange,.gene.annotation.gr$Transcription.start.site..TSS.)),
                             strand=strand(.gene.annotation.gr),mcols(.gene.annotation.gr))
+  else
+    tss.regions.gr <- GRanges(seqnames=seqnames(.gene.annotation.gr),
+                              ranges=IRanges(start=ifelse(strand(.gene.annotation.gr)=="-",start(.gene.annotation.gr),start(.gene.annotation.gr)-promoterRange),
+                                             end=ifelse(strand(.gene.annotation.gr)=="-",start(.gene.annotation.gr)+promoterRange,start(.gene.annotation.gr))),
+                              strand=strand(.gene.annotation.gr),mcols(.gene.annotation.gr))
 
   promoter.distal.tss.hits <- findOverlaps(.encode.promoters.distal.gr,tss.regions.gr)
   .encode.promoters.distal.gr$genes <- ""
@@ -276,10 +283,16 @@ annotateHits <- function(Hits,promoterRange=100000,upstream=0,downstream=0,gene.
     ret <- c(ret,.utr.gr)
 
   if (upstream>0) {
-    upstream.gr <- GRanges(seqnames=seqnames(.gene.annotation.gr),
-                              ranges=IRanges(start=ifelse(strand(.gene.annotation.gr)=="-",.gene.annotation.gr$Transcription.start.site..TSS.,.gene.annotation.gr$Transcription.start.site..TSS.-upstream),
-                                             end=ifelse(strand(.gene.annotation.gr)=="-",.gene.annotation.gr$Transcription.start.site..TSS.+upstream,.gene.annotation.gr$Transcription.start.site..TSS.)),
-                              strand=strand(.gene.annotation.gr),genes=mcols(.gene.annotation.gr)[,"genes"])
+    if (useAllTSS)
+      upstream.gr <- GRanges(seqnames=seqnames(.gene.annotation.gr),
+                             ranges=IRanges(start=ifelse(strand(.gene.annotation.gr)=="-",.gene.annotation.gr$Transcription.start.site..TSS.,.gene.annotation.gr$Transcription.start.site..TSS.-upstream),
+                                            end=ifelse(strand(.gene.annotation.gr)=="-",.gene.annotation.gr$Transcription.start.site..TSS.+upstream,.gene.annotation.gr$Transcription.start.site..TSS.)),
+                             strand=strand(.gene.annotation.gr),genes=mcols(.gene.annotation.gr)[,"genes"])
+    else
+      upstream.gr <- GRanges(seqnames=seqnames(.gene.annotation.gr),
+                             ranges=IRanges(start=ifelse(strand(.gene.annotation.gr)=="-",start(.gene.annotation.gr),start(.gene.annotation.gr)-upstream),
+                                            end=ifelse(strand(.gene.annotation.gr)=="-",start(.gene.annotation.gr)+upstream,start(.gene.annotation.gr))),
+                             strand=strand(.gene.annotation.gr),genes=mcols(.gene.annotation.gr)[,"genes"])
     upstream.gr$Feature = "Upstream"
     ret <- c(ret,upstream.gr)
   }
