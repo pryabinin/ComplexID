@@ -49,7 +49,7 @@ NULL
 #' A random walk with restarts is initialized and performed as in RWPCN then all genes in the PPI and complexes are scored according to the weights in the complex network.
 #' @return A list with two objects: a data frame called "scores" and a GRanges object "missingHits"
 #' The data frame "scores" has seven columns showing the scores of each gene, related to how much that gene is important to the query phenotype, as well as other information about the gene. It is ordered with the highest scoring genes first.\cr
-#' The first are HUGO gene names, the second column are the names of the complexes that gene is part of, the third columns is the score for the gene, the fourth column says whether or not the gene was in the PPI and/or a complex, the fifth column says whether or not the gene is a protein coding gene, the sixth column are the features of that gene that have a hit in them, and the seventh column is the number of hits that were annotated to that gene.
+#' The first columns is the HUGO gene names, the second column are the names of the complexes that gene is part of, the third columns is the score for the gene, the fourth column says whether or not the gene was in the PPI and/or a complex, the fifth column says whether or not the gene is a protein coding gene, the sixth column are the features of that gene that have a hit in them, and the seventh column is the number of hits that were annotated to that gene.
 #' The GRanges object "missingHits" lists all of the input hits that were not mapped to any gene.
 #' @examples
 #' data("hits")
@@ -189,16 +189,19 @@ annotateHits <- function(Hits,promoterRange=100000,upstream=0,downstream=0,gene.
                        order=unlist(mapply(rep,mcols(Hits)[queryHits(snpOverlaps),ncol(mcols(Hits))],time.to.repeat)),
                        stringsAsFactors = F)
 
-  out.df <- aggregate(cbind(hugo.names,features,snpName)~order, data = unique(out.df), paste, collapse = ";")
+  out.df <- aggregate(x = out.df[,1:3], by = list(out.df$order), FUN = paste, collapse = ";")
+  names(out.df)[1] <- "order"
+  #out.df <- aggregate(cbind(hugo.names,features,snpName)~order, data = unique(out.df), paste, collapse = ";")
   out.df$snpName <- as.character(sapply(strsplit(out.df$snpName,";"),"[[",1))
   out.df <- out.df[,c("snpName","hugo.names","features","order")]
-  temp.df <- data.frame(snpName=mcols(missingHits)[,1],
-                        hugo.names=NA,
-                        features=NA,
-                        order=mcols(missingHits)[,ncol(mcols(missingHits))],
-                        stringsAsFactors = F)
-
-  out.df <- rbind(out.df,temp.df)
+  if (length(missingHits) > 0) {
+    temp.df <- data.frame(snpName=mcols(missingHits)[,1],
+                          hugo.names=NA,
+                          features=NA,
+                          order=mcols(missingHits)[,ncol(mcols(missingHits))],
+                          stringsAsFactors = F)
+    out.df <- rbind(out.df,temp.df)
+  }
   out.df <- out.df[order(out.df$order,decreasing = F),]
   out.df$order <- NULL
   return(out.df)

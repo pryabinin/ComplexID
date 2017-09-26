@@ -43,7 +43,7 @@ For both Grange objects and matrices/dataframes, each entry/row corresponds to o
 \value{
 A list with two objects: a data frame called "scores" and a GRanges object "missingHits"
 The data frame "scores" has seven columns showing the scores of each gene, related to how much that gene is important to the query phenotype, as well as other information about the gene. It is ordered with the highest scoring genes first.\cr
-The first are HUGO gene names, the second column are the names of the complexes that gene is part of, the third columns is the score for the gene, the fourth column says whether or not the gene was in the PPI and/or a complex, the fifth column says whether or not the gene is a protein coding gene, the sixth column are the features of that gene that have a hit in them, and the seventh column is the number of hits that were annotated to that gene.
+The first columns is the HUGO gene names, the second column are the names of the complexes that gene is part of, the third columns is the score for the gene, the fourth column says whether or not the gene was in the PPI and/or a complex, the fifth column says whether or not the gene is a protein coding gene, the sixth column are the features of that gene that have a hit in them, and the seventh column is the number of hits that were annotated to that gene.
 The GRanges object "missingHits" lists all of the input hits that were not mapped to any gene.
 }
 \description{
