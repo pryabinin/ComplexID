@@ -7,5 +7,5 @@ Maintainer: Peter Ryabinin <ryabinip@ohsu.edu>
 Description: A package with a self-contained annotation database and protein complex network for finding causitive genes for a phenotype of interest. Also contains function for just annotating hits and plotting network around genes of interest.
 License: What license is it under?
 Encoding: UTF-8
-LazyData: false
+LazyData: true
 RoxygenNote: 6.0.1

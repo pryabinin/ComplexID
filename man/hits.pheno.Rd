@@ -9,7 +9,7 @@
 hits.pheno
 }
 \description{
-Matrix of similarity values between example phenotypes and phenotpye of interest. \cr
+Matrix of similarity values between example phenotypes and phenotype of interest. \cr
 For use with example "hits" data.
 }
 \keyword{datasets}

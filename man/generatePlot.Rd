@@ -4,7 +4,8 @@
 \alias{generatePlot}
 \title{Produce Network Plot}
 \usage{
-generatePlot(centralGenes, order = 0, colorGenes = centralGenes, ...)
+generatePlot(centralGenes, order = 0, colorGenes = centralGenes,
+  makeTkplot = F, spreadNodes = F, ...)
 }
 \arguments{
 \item{centralGenes}{character vector. The HUGO names of the genes that around which the network plot will be centered}
@@ -12,6 +13,10 @@ generatePlot(centralGenes, order = 0, colorGenes = centralGenes, ...)
 \item{order}{single integer, by default 0, The degree of neighboring genes that will be included. A value of zero means no neighboring genes are included}
 
 \item{colorGenes}{character vector. By default, is equal to centralGenes. The HUGO names of the genes that will be colored red. The rest of the genes will be colored orange.}
+
+\item{makeTkplot}{TRUE or FALSE. By default is FALSE. If TRUE, create a tkplot instead of a standard igraph so you can edit it with the GUI.}
+
+\item{spreadNodes}{TRUE or FALSE. By default is FALSE. If TRUE, uses Fruchterman Reingold algorithm to try to spread the vertices of the graph out further.}
 
 \item{...}{arguments passed to plot.igraph function}
 }
@@ -25,7 +30,7 @@ Produces a network plot of the specified genes and their neighbors (if desired)
 Plots a graph of the network of genes centered around the centralGenes, including neighbors out to the degree of "order". Any additional parameters for the plot.igraph function may be passed as well. \cr\cr
 Vertices are colored red if they are in centralGenes and orange otherwise. \cr
 \cr
-Edges are colored red if the interaction exists in the PPI and the two vertices share a complex. Edges are colored black if the interaction exists in the PPI but the two vertices do not share a compelx. Edges are colored green if the two vertices share a complex but do not interact in the PPI. \cr\cr
+Edges are colored red if the interaction exists in the PPI and the two vertices share a complex. Edges are colored black if the interaction exists in the PPI but the two vertices do not share a complex. Edges are colored green if the two vertices share a complex but do not interact in the PPI. \cr\cr
 Complexes are plotted as ellipses circling the vertices. Vertices that are not circled are not part of any complex. Vertices which are circled individually are part of a complex but none of the other genes are included in this graph.
 }
 \examples{

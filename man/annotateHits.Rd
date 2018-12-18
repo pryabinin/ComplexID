@@ -5,7 +5,8 @@
 \title{Annotates Hits by Genomic Features}
 \usage{
 annotateHits(Hits, promoterRange = 1e+05, upstream = 0, downstream = 0,
-  gene.body = T, promoters = T, utr = T, eqtl = T, enhancers = T,
+  geneBody = T, promoters = T, promoterTissues = "all", utr = T,
+  eqtl = T, eqtlTissues = "all", enhancers = T, enhancerTissues = "all",
   non_proteins = F, loopDist = 0, useAllTSS = T)
 }
 \arguments{
@@ -19,11 +20,21 @@ For both Grange objects and matrices/dataframes, each entry/row corresponds to o
 
 \item{downstream}{single integer. By default 0. How far downstream of a transcription start site a hit can be for it to be annotated to that gene. A NULL value is equivalent to a value of zero (no downstream sites will be annotated to a gene).}
 
+\item{geneBody}{TRUE or FALSE, by default TRUE. If TRUE, then hits will be annotated to the bodies (exons and introns) of protein coding genes. If FALSE, hits will not be annotated to those regions.}
+
+\item{promoters}{TRUE or FALSE, by default TRUE. If TRUE, then hits will be annotated to promoter regions. If FALSE, hits will not be annotated to promoter regions.}
+
+\item{promoterTissues}{character vector, by default is "all". If "all", then all promoters from all tissues will be included in the annotation, otherwise, only promoter regions from tissues specified by promoterTissues will be used for annotation.}
+
 \item{utr}{TRUE or FALSE. If TRUE then it will look for hits in the 3' and 5' UTRs of genes, otherwise it will not.}
 
-\item{eqtl}{TRUE or FALSE. By default TRUE. If TRUE, then hits may be mapped to eQTL loci, and therefore genes effected by those eQTLs be designated as associated}
+\item{eqtl}{TRUE or FALSE. By default TRUE. If TRUE, then hits may be mapped to eQTL loci, and therefore genes effected by those eQTLs be designated as associated to those hits.}
+
+\item{eqtlTissues}{character vector, by default is "all". If "all", then all eQTLs from all tissues will be included in the annotation, otherwise, only eQTL sites from tissues specified by promoterTissues will be used for annotation.}
 
 \item{enhancers}{TRUE or FALSE. By default TRUE. If TRUE, then hits may be mapped to enhancer loci and linked to genes via looping structures and promoters}
+
+\item{enhancerTissues}{character vector, by default is "all". If "all", then all enhancers from all tissues will be included in the annotation, otherwise, only enhancers regions from tissues specified by promoterTissues will be used for annotation.}
 
 \item{non_proteins}{TRUE or FALSE. By default FALSE. If TRUE then hits may be mapped to non-protein regions, if FALSE then that annotation will not be used.}
 

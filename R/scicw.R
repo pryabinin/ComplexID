@@ -6,6 +6,9 @@
 #' runComplexID
 #' generatePlot
 #' annotateHits
+#' getPromoterTissues
+#' geteQTLTissues
+#' getEnhancerTissues
 #'
 #'
 #' @docType package
@@ -16,11 +19,12 @@
 #' @import S4Vectors
 #' @import GenomicRanges
 #' @import igraph
+#' @import qgraph
 NULL
 
 #' Annotates Hits, Performs Random Walk, and Scores Genes
 #'
-#' Annotates hits to genes, performs random walk with restarts on a network of protein complexes, and then scores each gene in the network for its association with the pheontype of interest
+#' Annotates hits to genes, performs random walk with restarts on a network of protein complexes, and then scores each gene in the network for its association with the phenotype of interest
 #'
 #' @param Hits Granges object with two meta data columns, or a matrix or data frame with at least 5 columns. \cr If it is a Granges object, then the first meta data column is the site's name. The second meta data columns is a phenotype that the site is associated with.\cr
 #' If it is a matrix or data frame, then the first column must be the Hit's name, the second column must be chromosome designation, the third column must the starting base pair position, the fourth column must be the ending base pair position (equal to starting bp position for a standard SNP) and the fifth column must a phenotype that the site is associated with. \cr
@@ -31,16 +35,21 @@ NULL
 #' @param alpha single numeric in the range of (0,1]. The weight given to the vector of initialized values for the random walk, higher value of alpha means more weight for the initialized values
 #' @param upstream single integer. By default 0. How far upstream of a transcription start site a hit can be for it to be annotated to that gene. A NULL value is equivalent to a value of zero (no upstream sites will be annotated to a gene unless they lie in a promoter region, see promoterRange parameter).
 #' @param downstream single integer. By default 0. How far downstream of a transcription start site a hit can be for it to be annotated to that gene. A NULL value is equivalent to a value of zero (no downstream sites will be annotated to a gene).
+#' @param geneBody TRUE or FALSE, by default TRUE. If TRUE, then hits will be annotated to the bodies (exons and introns) of protein coding genes. If FALSE, hits will not be annotated to those regions.
+#' @param promoters TRUE or FALSE, by default TRUE. If TRUE, then hits will be annotated to promoter regions. If FALSE, hits will not be annotated to promoter regions.
+#' @param promoterTissues character vector, by default is "all". If "all", then all promoters from all tissues will be included in the annotation, otherwise, only promoter regions from tissues specified by promoterTissues will be used for annotation.
 #' @param utr TRUE or FALSE. If TRUE then it will look for hits in the 3' and 5' UTRs of genes, otherwise it will not.
-#' @param eqtl TRUE or FALSE. By default TRUE. If TRUE, then hits may be mapped to eQTL loci, and therefore genes effected by those eQTLs be designated as associated
+#' @param eqtl TRUE or FALSE. By default TRUE. If TRUE, then hits may be mapped to eQTL loci, and therefore genes effected by those eQTLs be designated as associated to those hits.
+#' @param eqtlTissues character vector, by default is "all". If "all", then all eQTLs from all tissues will be included in the annotation, otherwise, only eQTL sites from tissues specified by promoterTissues will be used for annotation.
 #' @param enhancers TRUE or FALSE. By default TRUE. If TRUE, then hits may be mapped to enhancer loci and linked to genes via looping structures and promoters
+#' @param enhancerTissues character vector, by default is "all". If "all", then all enhancers from all tissues will be included in the annotation, otherwise, only enhancers regions from tissues specified by promoterTissues will be used for annotation.
 #' @param loopDist single integer. By default 0. The maximum allowable distance that an enhancer or promoter can be from a looping region to be annotated to it.
 #' @param non_proteins TRUE or FALSE. By default FALSE. If TRUE then hits may be mapped to non-protein regions, if FALSE then that annotation will not be used.
-#' @param geneScoring a function that takes a vectors and outputs a single number. By default the "sum" function. This is the function that will determine the score of a gene based on the complexes that it belongs to. The input of the function is a vector of numerical values that represent the scores of the complexes that a gene belongs to. The output of the function should be a single numerical value.
+#' @param geneScoring a function that takes a vector and outputs a single number. By default the "sum" function. This is the function that will determine the score of a gene based on the scores of the complexes that it belongs to. The input of the function is a vector of numerical values that represent the scores of the complexes that a gene belongs to. Scores are determined by the RWPCN algorithm. The output of the function should be a single numerical value.
 #' @param useAllTSS TRUE or FALSE. By default TRUE. If TRUE, then all unique transcription start sites will be considered when looking at upstream regions of a gene (for promoters and upstream regions). If FALSE, it will a single start site for a gene, namely the start of the gene.
 #' @details
-#' Annotates Hits to genes using a built-in annotation database. Gene annotations come from the ENSEMBL annotation of GRCH37. Promoter regions are
-#' from ENCODE annotation, a hit in Hits is in a promoter region for a gene if it lies within a promoter region that is a number of bases upstream equal to promoterRange.\cr
+#' Annotates Hits to genes using a built-in annotation database. Protein coding genes, non-protein coding genes, and UTR annotations come from the ENSEMBL version 89 annotation of GRCH37. Promoter and Enhancer regions are
+#' from ENCODE annotation version 3, eQTL are from the gtexportal version 6.\cr
 #' \cr
 #' After the associated genes for each endophenotype are identified, it performs a Random Walk with Restarts on a pre-constructed protein complex network as in the RWPCN method.
 #' The protein complex network was constructed in a similar way is in the RWPCN method. For a PPI we used STRING with a threshold cutoff of 700. Protein IDs in STRING were mapped to approved HUGO names using ENSEMBL and HGNC.
@@ -56,7 +65,7 @@ NULL
 #' data("hits.pheno")
 #' test <- runComplexID(Hits = hits,phenoSim=hits.pheno,promoterRange = 10000,upstream = 1000,downstream = 1000,utr = T)
 #' @export
-runComplexID <- function(Hits,phenoSim,promoterRange=100000,eps=1e-10,alpha=0.8,upstream=0,downstream=0,gene.body=T,promoters=T,utr=T,eqtl=T,enhancers=T,loopDist=0,non_proteins=F,geneScoring=sum,useAllTSS=T) {
+runComplexID <- function(Hits,phenoSim,promoterRange=100000,eps=1e-10,alpha=0.8,upstream=0,downstream=0,geneBody=T,promoters=T,promoterTissues="all",utr=T,eqtl=T,eqtlTissues="all",enhancers=T,enhancerTissues="all",loopDist=0,non_proteins=F,geneScoring=sum,useAllTSS=T) {
   # Check for errors in input
   if (promoterRange < 0)
     stop("promoterRange must be greater than zero")
@@ -87,7 +96,7 @@ runComplexID <- function(Hits,phenoSim,promoterRange=100000,eps=1e-10,alpha=0.8,
     stop("some hits in Hits have a phenotype that is nonexistant in phenoSim")
 
   # create annotations according to the user's promoter threshold
-  annotations <- .createAnnotationDB(promoterRange,upstream,downstream,gene.body,promoters,utr,eqtl,enhancers,non_proteins,loopDist,useAllTSS)
+  annotations <- .createAnnotationDB(promoterRange,upstream,downstream,geneBody,promoters,promoterTissues,utr,eqtl,eqtlTissues,enhancers,enhancerTissues,non_proteins,loopDist,useAllTSS)
   # get set of seed genes linked to a phenotype
   seedgenes <- .getSeedGenes(Hits,annotations)
   # initialize network
@@ -125,12 +134,14 @@ runComplexID <- function(Hits,phenoSim,promoterRange=100000,eps=1e-10,alpha=0.8,
 #' @param centralGenes character vector. The HUGO names of the genes that around which the network plot will be centered
 #' @param order single integer, by default 0, The degree of neighboring genes that will be included. A value of zero means no neighboring genes are included
 #' @param colorGenes character vector. By default, is equal to centralGenes. The HUGO names of the genes that will be colored red. The rest of the genes will be colored orange.
+#' @param makeTkplot TRUE or FALSE. By default is FALSE. If TRUE, create a tkplot instead of a standard igraph so you can edit it with the GUI.
+#' @param spreadNodes TRUE or FALSE. By default is FALSE. If TRUE, uses Fruchterman Reingold algorithm to try to spread the vertices of the graph out further.
 #' @param ... arguments passed to plot.igraph function
 #' @details
 #' Plots a graph of the network of genes centered around the centralGenes, including neighbors out to the degree of "order". Any additional parameters for the plot.igraph function may be passed as well. \cr\cr
 #' Vertices are colored red if they are in centralGenes and orange otherwise. \cr
 #' \cr
-#' Edges are colored red if the interaction exists in the PPI and the two vertices share a complex. Edges are colored black if the interaction exists in the PPI but the two vertices do not share a compelx. Edges are colored green if the two vertices share a complex but do not interact in the PPI. \cr\cr
+#' Edges are colored red if the interaction exists in the PPI and the two vertices share a complex. Edges are colored black if the interaction exists in the PPI but the two vertices do not share a complex. Edges are colored green if the two vertices share a complex but do not interact in the PPI. \cr\cr
 #' Complexes are plotted as ellipses circling the vertices. Vertices that are not circled are not part of any complex. Vertices which are circled individually are part of a complex but none of the other genes are included in this graph.
 #' @return A plot of the subnetwork
 #' @examples
@@ -139,18 +150,25 @@ runComplexID <- function(Hits,phenoSim,promoterRange=100000,eps=1e-10,alpha=0.8,
 #' test <- runComplexID(Hits = hits,phenoSim=hits.pheno,promoterRange = 10000,upstream = 1000,downstream = 1000,utr = T)
 #' generatePlot(test$scores$HUGO.Gene.Name[1:10])
 #' @export
-generatePlot <- function(centralGenes,order=0,colorGenes=centralGenes,...) {
+generatePlot <- function(centralGenes,order=0,colorGenes=centralGenes,makeTkplot=F,spreadNodes=F,...) {
   graph.to.plot <- induced_subgraph(.complete.igraph,unlist(neighborhood(.complete.igraph,order = order,nodes = as.character(centralGenes))))
   V(graph.to.plot)$color <- ifelse(names(V(graph.to.plot)) %in% as.character(colorGenes),"red","orange")
   complexes.to.plot <- .corum.subunits[sapply(.corum.subunits,function(x) { sum(names(V(graph.to.plot)) %in% x)>0 })]
   complexes.to.plot <- lapply(complexes.to.plot,function(x) { as.character(x)[as.character(x) %in% names(V(graph.to.plot))] })
-    return(plot.igraph(x=graph.to.plot,mark.groups = complexes.to.plot,...))
+  if (makeTkplot) {
+    if (spreadNodes)
+      return(tkplot(graph=graph.to.plot,mark.groups = complexes.to.plot,l=.callqgraphfruchterman,...))
+    return(tkplot(graph=graph.to.plot,mark.groups = complexes.to.plot,...))
+  }
+  if (spreadNodes)
+    return(plot.igraph(x=graph.to.plot,mark.groups = complexes.to.plot,l=.callqgraphfruchterman,...))
+  return(plot.igraph(x=graph.to.plot,mark.groups = complexes.to.plot,...))
 }
 
 #' Annotates Hits by Genomic Features
 #' @inheritParams runComplexID
 #' @export
-annotateHits <- function(Hits,promoterRange=100000,upstream=0,downstream=0,gene.body=T,promoters=T,utr=T,eqtl=T,enhancers=T,non_proteins=F,loopDist=0,useAllTSS=T) {
+annotateHits <- function(Hits,promoterRange=100000,upstream=0,downstream=0,geneBody=T,promoters=T,promoterTissues="all",utr=T,eqtl=T,eqtlTissues="all",enhancers=T,enhancerTissues="all",non_proteins=F,loopDist=0,useAllTSS=T) {
   # Check for errors in input
   if (promoterRange < 0)
     stop("promoterRange must be greater than zero")
@@ -173,7 +191,7 @@ annotateHits <- function(Hits,promoterRange=100000,upstream=0,downstream=0,gene.
     stop("Hits must have at least two meta data columns")
 
   # create annotations according to the user's promoter threshold
-  annotations <- .createAnnotationDB(promoterRange,upstream,downstream,gene.body,promoters,utr,eqtl,enhancers,non_proteins,loopDist,useAllTSS)
+  annotations <- .createAnnotationDB(promoterRange,upstream,downstream,geneBody,promoters,promoterTissues,utr,eqtl,eqtlTissues,enhancers,enhancerTissues,non_proteins,loopDist,useAllTSS)
 
   # annotate input hits
   mcols(Hits) <- cbind(mcols(Hits),data.frame(1:length(Hits)))
@@ -207,60 +225,130 @@ annotateHits <- function(Hits,promoterRange=100000,upstream=0,downstream=0,gene.
   return(out.df)
 }
 
+#' Lists tissues available for promoter regions
+#'
+#' Lists the tissues that can be used for the promoterTissues argument in the runComplexID and annotateHits functions
+#'
+#' @details
+#' Lists which tissues can be used for annotating promoter hits.
+#' @return A character vector
+#' @examples
+#' getPromoterTissues()
+#' @export
+getPromoterTissues <- function() {
+  return(unique(.encode.promoters.gr$tissue))
+}
+
+#' Lists tissues available for eQTL sites
+#'
+#' Lists the tissues that can be used for the eqtlTissues argument in the runComplexID and annotateHits functions
+#'
+#' @details
+#' Lists which tissues can be used for annotating eQTL hits.
+#' @return A character vector
+#' @examples
+#' geteQTLTissues()
+#' @export
+geteQTLTissues <- function() {
+  return(unique(.eqtl.gr$tissue))
+}
+
+#' Lists tissues available for enhancer regions
+#'
+#' Lists the tissues that can be used for the enhancerTissues argument in the runComplexID and annotateHits functions
+#'
+#' @details
+#' Lists which tissues can be used for annotating enhancer hits.
+#' @return A character vector
+#' @examples
+#' getEnhancerTissues()
+#' @export
+getEnhancerTissues <- function() {
+  return(unique(.all.enhancers.gr$tissue))
+}
+
+
 #' @keywords internal
-.createAnnotationDB <- function(promoterRange,upstream,downstream,gene.body,promoters,utr,eqtl,enhancers,non_proteins,loopDist,useAllTSS) {
+.createAnnotationDB <- function(promoterRange,upstream,downstream,geneBody,promoters,promoterTissues,utr,eqtl,eqtlTissues,enhancers,enhancerTissues,non_proteins,loopDist,useAllTSS) {
   if (useAllTSS)
-  tss.regions.gr <- GRanges(seqnames=seqnames(.gene.annotation.gr),
+    tss.regions.gr <- GRanges(seqnames=seqnames(.gene.annotation.gr),
                             ranges=IRanges(start=ifelse(strand(.gene.annotation.gr)=="-",.gene.annotation.gr$Transcription.start.site..TSS.,.gene.annotation.gr$Transcription.start.site..TSS.-promoterRange),
                                            end=ifelse(strand(.gene.annotation.gr)=="-",.gene.annotation.gr$Transcription.start.site..TSS.+promoterRange,.gene.annotation.gr$Transcription.start.site..TSS.)),
                             strand=strand(.gene.annotation.gr),mcols(.gene.annotation.gr))
-  else
+  else {
     tss.regions.gr <- GRanges(seqnames=seqnames(.gene.annotation.gr),
                               ranges=IRanges(start=ifelse(strand(.gene.annotation.gr)=="-",start(.gene.annotation.gr),start(.gene.annotation.gr)-promoterRange),
                                              end=ifelse(strand(.gene.annotation.gr)=="-",start(.gene.annotation.gr)+promoterRange,start(.gene.annotation.gr))),
                               strand=strand(.gene.annotation.gr),mcols(.gene.annotation.gr))
-
-  promoter.distal.tss.hits <- findOverlaps(.encode.promoters.distal.gr,tss.regions.gr)
-  .encode.promoters.distal.gr$genes <- ""
-  .encode.promoters.distal.gr$Feature <- "Distal_Promoter"
-  if (length(promoter.distal.tss.hits) > 0) {
-    split.hits.idx <- split(1:length(promoter.distal.tss.hits),queryHits(promoter.distal.tss.hits),drop=T)
-    .encode.promoters.distal.gr$genes[as.integer(names(split.hits.idx))] <- sapply(split.hits.idx, function(x) {
-      return(tss.regions.gr$genes[subjectHits(promoter.distal.tss.hits)[x]])
-    })
+    tss.regions.gr <- unique(tss.regions.gr)
   }
 
-  promoter.prox.tss.hits <- findOverlaps(.encode.promoters.prox.gr,tss.regions.gr)
-  .encode.promoters.prox.gr$genes <- ""
-  .encode.promoters.prox.gr$Feature <- "Distal_Promoter"
-  if (length(promoter.prox.tss.hits) > 0) {
-    split.hits.idx <- split(1:length(promoter.prox.tss.hits),queryHits(promoter.prox.tss.hits),drop=T)
-    .encode.promoters.prox.gr$genes[as.integer(names(split.hits.idx))] <- sapply(split.hits.idx, function(x) {
-      return(tss.regions.gr$genes[subjectHits(promoter.prox.tss.hits)[x]])
-    })
+  if (enhancers | promoters) {
+    if (promoterTissues == "all")
+      current.promoters <- .encode.promoters.gr
+    else
+      current.promoters <- .encode.promoters.gr[.encode.promoters.gr$tissue %in% promoterTissues]
+    current.promoters <- reduce(current.promoters)
+    #current.promoters$tissue <- NULL
+    promoter.tss.hits <- findOverlaps(current.promoters,tss.regions.gr)
+    current.promoters$genes <- ""
+    current.promoters$Feature <- "Promoter"
+    if (length(promoter.tss.hits) > 0) {
+      split.hits.idx <- split(1:length(promoter.tss.hits),queryHits(promoter.tss.hits),drop=T)
+      current.promoters$genes[as.integer(names(split.hits.idx))] <- sapply(split.hits.idx, function(x) {
+        return(tss.regions.gr$genes[subjectHits(promoter.tss.hits)[x]])
+      })
+    }
   }
 
-  if (gene.body) {
-    ret <- .gene.annotation.gr
+  # promoter.distal.tss.hits <- findOverlaps(.encode.promoters.distal.gr,tss.regions.gr)
+  # .encode.promoters.distal.gr$genes <- ""
+  # .encode.promoters.distal.gr$Feature <- "Distal_Promoter"
+  # if (length(promoter.distal.tss.hits) > 0) {
+  #   split.hits.idx <- split(1:length(promoter.distal.tss.hits),queryHits(promoter.distal.tss.hits),drop=T)
+  #   .encode.promoters.distal.gr$genes[as.integer(names(split.hits.idx))] <- sapply(split.hits.idx, function(x) {
+  #     return(tss.regions.gr$genes[subjectHits(promoter.distal.tss.hits)[x]])
+  #   })
+  # }
+  #
+  # promoter.prox.tss.hits <- findOverlaps(.encode.promoters.prox.gr,tss.regions.gr)
+  # .encode.promoters.prox.gr$genes <- ""
+  # .encode.promoters.prox.gr$Feature <- "Distal_Promoter"
+  # if (length(promoter.prox.tss.hits) > 0) {
+  #   split.hits.idx <- split(1:length(promoter.prox.tss.hits),queryHits(promoter.prox.tss.hits),drop=T)
+  #   .encode.promoters.prox.gr$genes[as.integer(names(split.hits.idx))] <- sapply(split.hits.idx, function(x) {
+  #     return(tss.regions.gr$genes[subjectHits(promoter.prox.tss.hits)[x]])
+  #   })
+  # }
+
+  if (geneBody) {
+    ret <- unique(.gene.annotation.gr)
     ret$Transcription.start.site..TSS. <- NULL
   }
   else
     ret <- GRanges()
 
   if(enhancers) {
+    if (enhancerTissues=="all")
+      current.enhancers <- .all.enhancers.gr
+    else {
+      current.enhancers <- .all.enhancers.gr[.all.enhancers.gr$tissue %in% enhancerTissues]
+    }
+    current.enhancers <- reduce(current.enhancers)
+    #current.enhancers$tissue <- NULL
     new.loops.gr <- GRanges(seqnames=seqnames(.loops.gr),
                             ranges=IRanges(start=start(.loops.gr)-loopDist,
                                            end=end(.loops.gr)+loopDist))
     mcols(new.loops.gr) <- mcols(.loops.gr)
-    enhancer.overlaps <- findOverlaps(new.loops.gr,.all.enhancers.gr,ignore.strand=T)
+    enhancer.overlaps <- findOverlaps(new.loops.gr,current.enhancers,ignore.strand=T)
 
     new.loops.gr <- GRanges(seqnames=as.character(seqnames(new.loops.gr)[queryHits(enhancer.overlaps)]),
                             ranges=IRanges(start=as.integer(new.loops.gr$y1)[queryHits(enhancer.overlaps)]-loopDist,
                                            end=as.integer(new.loops.gr$y2)[queryHits(enhancer.overlaps)]+loopDist))
-    new.loops.gr$enhancer.start <- start(.all.enhancers.gr)[subjectHits(enhancer.overlaps)]
-    new.loops.gr$enhancer.end <- end(.all.enhancers.gr)[subjectHits(enhancer.overlaps)]
+    new.loops.gr$enhancer.start <- start(current.enhancers)[subjectHits(enhancer.overlaps)]
+    new.loops.gr$enhancer.end <- end(current.enhancers)[subjectHits(enhancer.overlaps)]
 
-    promoters.with.genes <- c(.encode.promoters.distal.gr[.encode.promoters.distal.gr$genes != ""],.encode.promoters.prox.gr[.encode.promoters.prox.gr$genes != ""])
+    promoters.with.genes <- current.promoters[current.promoters$genes != ""]
 
     promoter.overlaps <- findOverlaps(new.loops.gr,promoters.with.genes,ignore.strand=T)
     time.to.repeat <- sapply(promoters.with.genes$genes[subjectHits(promoter.overlaps)],length)
@@ -272,15 +360,10 @@ annotateHits <- function(Hits,promoterRange=100000,upstream=0,downstream=0,gene.
     enhancer.annot$Feature <- "Enhancer"
     ret <- c(ret,enhancer.annot)
 
-    .encode.promoters.distal.gr$enhancer.starts <- NULL
-    .encode.promoters.distal.gr$enhancer.ends <- NULL
-
-    .encode.promoters.prox.gr$enhancer.starts <- NULL
-    .encode.promoters.prox.gr$enhancer.ends <- NULL
   }
 
   if (promoters)
-    ret <- c(ret,.encode.promoters.distal.gr[.encode.promoters.distal.gr$genes != ""],.encode.promoters.prox.gr[.encode.promoters.prox.gr$genes != ""])
+    ret <- c(ret,current.promoters[current.promoters$genes != ""])
 
   if (utr)
     ret <- c(ret,.utr.gr)
@@ -309,8 +392,15 @@ annotateHits <- function(Hits,promoterRange=100000,upstream=0,downstream=0,gene.
     ret <- c(ret,downstream.gr)
   }
 
-  if (eqtl)
-    ret <- c(ret,.eqtl.gr)
+  if (eqtl) {
+    if (eqtlTissues=="all")
+      temp <- .eqtl.gr
+    else
+      temp <- .eqtl.gr[.eqtl.gr$tissue %in% eqtlTissues]
+    temp <- unique(temp)
+    temp$tissue <- NULL
+    ret <- c(ret,temp)
+  }
   if (non_proteins)
     ret <- c(ret,.non.protein.annotations.gr)
   return(ret)
@@ -378,4 +468,9 @@ annotateHits <- function(Hits,promoterRange=100000,upstream=0,downstream=0,gene.
   ret <- data.frame("HUGO Gene Name"=names(.geneToComplex),"Complexes"=.complexNames,"score"=scores,"Gene.in.Network"="Yes","Protein.coding"="Yes",stringsAsFactors = F)
   ret <- ret[order(ret[,2],decreasing = T),]
   return(ret)
+}
+
+#' @keywords internal
+.callqgraphfruchterman <- function(g) {
+  return(qgraph.layout.fruchtermanreingold(edgelist = get.edgelist(g),vcount=vcount(g),area=8*(vcount(g)^2),repulse.rad=(vcount(g)^3.1)))
 }

@@ -2,9 +2,13 @@
 
 export(annotateHits)
 export(generatePlot)
+export(getEnhancerTissues)
+export(getPromoterTissues)
+export(geteQTLTissues)
 export(runComplexID)
 import(GenomicRanges)
 import(IRanges)
 import(Matrix)
 import(S4Vectors)
 import(igraph)
+import(qgraph)

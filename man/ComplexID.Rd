@@ -13,6 +13,9 @@ A package with a self-contained annotation database and protein complex network 
 runComplexID
 generatePlot
 annotateHits
+getPromoterTissues
+geteQTLTissues
+getEnhancerTissues
 }
 
 \author{

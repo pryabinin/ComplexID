@@ -5,9 +5,10 @@
 \title{Annotates Hits, Performs Random Walk, and Scores Genes}
 \usage{
 runComplexID(Hits, phenoSim, promoterRange = 1e+05, eps = 1e-10,
-  alpha = 0.8, upstream = 0, downstream = 0, gene.body = T,
-  promoters = T, utr = T, eqtl = T, enhancers = T, loopDist = 0,
-  non_proteins = F, geneScoring = sum, useAllTSS = T)
+  alpha = 0.8, upstream = 0, downstream = 0, geneBody = T,
+  promoters = T, promoterTissues = "all", utr = T, eqtl = T,
+  eqtlTissues = "all", enhancers = T, enhancerTissues = "all",
+  loopDist = 0, non_proteins = F, geneScoring = sum, useAllTSS = T)
 }
 \arguments{
 \item{Hits}{Granges object with two meta data columns, or a matrix or data frame with at least 5 columns. \cr If it is a Granges object, then the first meta data column is the site's name. The second meta data columns is a phenotype that the site is associated with.\cr
@@ -26,17 +27,27 @@ For both Grange objects and matrices/dataframes, each entry/row corresponds to o
 
 \item{downstream}{single integer. By default 0. How far downstream of a transcription start site a hit can be for it to be annotated to that gene. A NULL value is equivalent to a value of zero (no downstream sites will be annotated to a gene).}
 
+\item{geneBody}{TRUE or FALSE, by default TRUE. If TRUE, then hits will be annotated to the bodies (exons and introns) of protein coding genes. If FALSE, hits will not be annotated to those regions.}
+
+\item{promoters}{TRUE or FALSE, by default TRUE. If TRUE, then hits will be annotated to promoter regions. If FALSE, hits will not be annotated to promoter regions.}
+
+\item{promoterTissues}{character vector, by default is "all". If "all", then all promoters from all tissues will be included in the annotation, otherwise, only promoter regions from tissues specified by promoterTissues will be used for annotation.}
+
 \item{utr}{TRUE or FALSE. If TRUE then it will look for hits in the 3' and 5' UTRs of genes, otherwise it will not.}
 
-\item{eqtl}{TRUE or FALSE. By default TRUE. If TRUE, then hits may be mapped to eQTL loci, and therefore genes effected by those eQTLs be designated as associated}
+\item{eqtl}{TRUE or FALSE. By default TRUE. If TRUE, then hits may be mapped to eQTL loci, and therefore genes effected by those eQTLs be designated as associated to those hits.}
+
+\item{eqtlTissues}{character vector, by default is "all". If "all", then all eQTLs from all tissues will be included in the annotation, otherwise, only eQTL sites from tissues specified by promoterTissues will be used for annotation.}
 
 \item{enhancers}{TRUE or FALSE. By default TRUE. If TRUE, then hits may be mapped to enhancer loci and linked to genes via looping structures and promoters}
+
+\item{enhancerTissues}{character vector, by default is "all". If "all", then all enhancers from all tissues will be included in the annotation, otherwise, only enhancers regions from tissues specified by promoterTissues will be used for annotation.}
 
 \item{loopDist}{single integer. By default 0. The maximum allowable distance that an enhancer or promoter can be from a looping region to be annotated to it.}
 
 \item{non_proteins}{TRUE or FALSE. By default FALSE. If TRUE then hits may be mapped to non-protein regions, if FALSE then that annotation will not be used.}
 
-\item{geneScoring}{a function that takes a vectors and outputs a single number. By default the "sum" function. This is the function that will determine the score of a gene based on the complexes that it belongs to. The input of the function is a vector of numerical values that represent the scores of the complexes that a gene belongs to. The output of the function should be a single numerical value.}
+\item{geneScoring}{a function that takes a vector and outputs a single number. By default the "sum" function. This is the function that will determine the score of a gene based on the scores of the complexes that it belongs to. The input of the function is a vector of numerical values that represent the scores of the complexes that a gene belongs to. Scores are determined by the RWPCN algorithm. The output of the function should be a single numerical value.}
 
 \item{useAllTSS}{TRUE or FALSE. By default TRUE. If TRUE, then all unique transcription start sites will be considered when looking at upstream regions of a gene (for promoters and upstream regions). If FALSE, it will a single start site for a gene, namely the start of the gene.}
 }
@@ -47,11 +58,11 @@ The first columns is the HUGO gene names, the second column are the names of the
 The GRanges object "missingHits" lists all of the input hits that were not mapped to any gene.
 }
 \description{
-Annotates hits to genes, performs random walk with restarts on a network of protein complexes, and then scores each gene in the network for its association with the pheontype of interest
+Annotates hits to genes, performs random walk with restarts on a network of protein complexes, and then scores each gene in the network for its association with the phenotype of interest
 }
 \details{
-Annotates Hits to genes using a built-in annotation database. Gene annotations come from the ENSEMBL annotation of GRCH37. Promoter regions are
-from ENCODE annotation, a hit in Hits is in a promoter region for a gene if it lies within a promoter region that is a number of bases upstream equal to promoterRange.\cr
+Annotates Hits to genes using a built-in annotation database. Protein coding genes, non-protein coding genes, and UTR annotations come from the ENSEMBL version 89 annotation of GRCH37. Promoter and Enhancer regions are
+from ENCODE annotation version 3, eQTL are from the gtexportal version 6.\cr
 \cr
 After the associated genes for each endophenotype are identified, it performs a Random Walk with Restarts on a pre-constructed protein complex network as in the RWPCN method.
 The protein complex network was constructed in a similar way is in the RWPCN method. For a PPI we used STRING with a threshold cutoff of 700. Protein IDs in STRING were mapped to approved HUGO names using ENSEMBL and HGNC.
