@@ -380,7 +380,7 @@ getEnhancerTissues <- function() {
                                             end=ifelse(strand(.gene.annotation.gr)=="-",start(.gene.annotation.gr)+upstream,start(.gene.annotation.gr))),
                              strand=strand(.gene.annotation.gr),genes=mcols(.gene.annotation.gr)[,"genes"])
     upstream.gr$Feature = "Upstream"
-    ret <- c(ret,upstream.gr)
+    ret <- c(ret,unique(upstream.gr))
   }
 
   if (downstream>0) {
@@ -389,7 +389,7 @@ getEnhancerTissues <- function() {
                                           end=ifelse(strand(.gene.annotation.gr)=="-",end(.gene.annotation.gr),end(.gene.annotation.gr)+downstream)),
                            strand=strand(.gene.annotation.gr),genes=mcols(.gene.annotation.gr)[,"genes"])
     downstream.gr$Feature = "Downstream"
-    ret <- c(ret,downstream.gr)
+    ret <- c(ret,unique(downstream.gr))
   }
 
   if (eqtl) {
